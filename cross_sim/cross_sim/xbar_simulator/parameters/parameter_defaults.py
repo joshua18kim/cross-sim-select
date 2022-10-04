@@ -307,6 +307,10 @@ NumericParamDefaults = {
         'Vread' : 0.7667, # Read voltage using during MVM/VMM with temporal encoding; must be higher than Vselect!
         'noRowParasitics' : False, # If True, no parasitic resistance is assumed on the rows (e.g. gate-connected)
         'selectorRead' : False, # Whether or not select device is modeled during read; True for best accuracy, False for speed
+        'select' : False, # Same as parameter above, but I created a separate one in case the one above is tied to other functions
+        'select_thermal' : 0.0258563, # Thermal voltage for the select device (modeled as a diode)
+        'select_ideality' : 1.0, # Ideality for the select device, proportional to steepness of exponential curve for IV characteristic
+        'select_sat_current' : 1e-14, # Saturation current for the select device
     },
 
     'attributes' : {

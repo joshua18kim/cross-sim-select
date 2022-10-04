@@ -140,7 +140,8 @@ class NumericCore(ClipperCore):
             vector = self.vector_mvm
 
         # Call pseudo-circuit simulator if parasitic resistance is enabled
-        if self.params.numeric_params.Rp > 0 and vector.any():
+        #############################################################################
+        if self.params.numeric_params.Rp > 0 and vector.any() or (self.params.numeric_params.circuit.select == True):
             solved, retry = False, False
             while not solved:
                 solved = True
@@ -234,6 +235,13 @@ class NumericCore(ClipperCore):
         noRowParasitics = self.params.numeric_params.circuit.noRowParasitics
         Vselect = self.params.numeric_params.circuit.Vselect
         Vread = self.params.numeric_params.circuit.Vread
+        #############################################################
+        select = self.params.numeric_params.circuit.select
+        Vt = self.params.numeric_params.circuit.select_thermal
+        ideality = self.params.numeric_params.circuit.select_ideality
+        I0 = self.params.numeric_params.circuit.select_sat_current
+        on_off_ratio = 1/self.params.xbar_params.weights.minimum
+        
         
         # If SIMD, retrieve the appropriate masking matrix
         useMask = (self.params.numeric_params.Nex_par > 1 and self.matrix_temp is not None)
@@ -243,50 +251,88 @@ class NumericCore(ClipperCore):
         # Initialize error and number of iterations
         Verr = 1e9
         Niters = 0
+        
 
+        # Constants used to convert to real values for the diode simulation
+        Rmin = 1e4
+        Gmax = 1/Rmin
+        Gmin = Gmax / on_off_ratio
+        Vmax = 0.8
+        
+        Gmat = Gmin + (Gmax-Gmin) * matrix
+        
+        # print(Gmat[0])
+        # print(vector)
         # Initial estimate of device currents
-        # Input seen at every element
-        dV0 = ncp.tile(vector,(matrix.shape[0],1))
-        Ires = matrix*dV0
+        dV0 = ncp.tile(vector,(matrix.shape[0],1)) * Vmax
+        Ires = Gmat*dV0
         dV = dV0.copy()
+        # print(Ires[np.nonzero(Ires)])
+        ###############################################################
+        if select:
+            # Calculate best Vcomp for each device
+            Vcomp = Vt*ideality*ncp.log(abs(Ires)/I0 + 1)
+            Vcomp *= ncp.sign(Ires)
+            # print(Vcomp[np.nonzero(Vcomp)])
+            # Average the best Vcomp for each row
+            Vcomp_row = ncp.average(Vcomp,axis=0)
+            # print(Vcomp_row)
+            # Pull the row Vcomp out across the rows into the correct matrix shape
+            Vcomp_final = ncp.tile(Vcomp_row,(matrix.shape[0],1))
+            # print(Vcomp_final[np.nonzero(Vcomp_final)])
+            
+            # Overall Vin 
+            Vin = dV0.copy() + Vcomp_final
+        else:
+            Vin = dV0.copy()
 
         # Iteratively calculate parasitics and update device currents
         while Verr > Verr_th and Niters < Niters_max:
             # Calculate parasitic voltage drops
-            if useMask:
-                Isum_col = mask*ncp.cumsum(Ires,1)
-                Isum_row = mask*ncp.cumsum(Ires[::-1],0)[::-1]
+            if Rp > 0:
+                if useMask:
+                    Isum_col = mask*ncp.cumsum(Ires,1)
+                    Isum_row = mask*ncp.cumsum(Ires[::-1],0)[::-1]
+                else:
+                    Isum_col = ncp.cumsum(Ires,1)
+                    Isum_row = ncp.cumsum(Ires[::-1],0)[::-1]
+    
+                Vdrops_col = Rp*ncp.cumsum(Isum_col[:,::-1],1)[:,::-1]
+                Vdrops_row = Rp*ncp.cumsum(Isum_row,0)
+                Vpar = Vdrops_col + Vdrops_row
             else:
-                Isum_col = ncp.cumsum(Ires,1)
-                Isum_row = ncp.cumsum(Ires[::-1],0)[::-1]
-
-            Vdrops_col = Rp*ncp.cumsum(Isum_col[:,::-1],1)[:,::-1]
-            Vdrops_row = Rp*ncp.cumsum(Isum_row,0)
-            Vpar = Vdrops_col + Vdrops_row
+                Vpar = 0
+                Niters_max = 5
+            #######################################################
+            if select:
+                Vdiode = Vt*ideality*ncp.log(abs(Ires)/I0 + 1)
+                Vdiode *= ncp.sign(Ires)
+            else:
+                Vdiode = 0
 
             # Calculate the error for the current estimate of memristor currents
-            VerrMat = dV0 - Vpar - dV
+            VerrMat = (Vin - Vpar - Vdiode - dV)*(Vin!=0)
 
             # Evaluate overall error; if using SIMD, make sure only to count the cells that matter
             if useMask:
                 Verr = ncp.max(ncp.abs(VerrMat[mask]))
             else:
                 Verr = ncp.max(ncp.abs(VerrMat))
+                # print(Verr)
+                
             if Verr < Verr_th:
                 break
 
             # Update memristor currents for the next iteration
             dV += gamma*VerrMat
-            if Vselect > 0:
-                dV = (dV - Vselect)*(dV > Vselect) + (dV + Vselect)*(dV < -Vselect) 
             Ires = matrix*dV
             Niters += 1
             
         # Calculate the summed currents on the columns
-        Icols = ncp.sum(Ires,axis=1)
+        Icols = ncp.sum(Ires,axis=1) / (Gmax * Vmax)
 
         # Should add some more checks here on whether the results of this calculation are erroneous even if it converged
-        if Verr > Verr_th:
+        if Verr > Verr_th and Rp > 0:
             raise RuntimeError('Parasitic resistance too high: could not converge!')
         del Ires
         return Icols
@@ -307,6 +353,7 @@ class NumericCore(ClipperCore):
         Niters_max = self.params.numeric_params.Niters_max_parasitics
         Verr_th = self.params.numeric_params.Verr_th_mvm
         gamma = self.params.numeric_params.convergence_param
+        
             
         # If SIMD, retrieve the appropriate masking matrix
         useMask = (self.params.numeric_params.Nex_par > 1 and self.matrix_temp is not None)
@@ -382,7 +429,7 @@ class NumericCore(ClipperCore):
         matrix_neg : negative weight matrix
         """
         # For efficiency, this code assumes no select device and no row parasitics
-        if not self.params.numeric_params.circuit.noRowParasitics or self.params.numeric_params.circuit.Vselect > 0:
+        if not self.params.numeric_params.noRowParasitics or self.params.numeric_params.Vselect > 0:
             raise ValueError("Interleaved parasitics option requires no row parasitics and Vselect = 0")
 
         # Parasitic resistance
@@ -801,15 +848,18 @@ class NumericCore(ClipperCore):
 
         Ncopy = self.params.numeric_params.x_par * self.params.numeric_params.y_par
         
+        # SIMD and parasitic resistance
         # If doing a circuit simulation, must keep the full sized (sparse) matrix
         # Nex_par > 1 only if Rp > 0
         if self.params.numeric_params.Nex_par > 1:
             noisy_matrix = self._apply_read_noise(self.matrix)
-            noisy_matrix *= self.par_mask
 
-        # No parasitic resistance
+        # SIMD and no parasitic resistance
         else:
             if Ncopy > 1:
+                # This is slower for some reason
+                # self.matrix[self.indices] = self._apply_read_noise(self.matrix_dense)
+
                 noisy_matrix = self._apply_read_noise(self.matrix_dense)
                 Nx, Ny = self.matrix_temp.shape
                 for m in range(Ncopy):

@@ -39,6 +39,12 @@ def set_params(**kwargs):
     drift_model = kwargs.get("drift_model",None)
 
     Rp = kwargs.get("Rp",0)
+    
+    #################################################
+    select = kwargs.get("select",False)
+    select_thermal = kwargs.get("select_thermal",0.0258563)
+    select_ideality = kwargs.get("select_ideality",1.0)
+    select_sat_current = kwargs.get("select_sat_current",1e-14)
 
     NrowsMax = kwargs.get("NrowsMax",None)
     weight_bits = kwargs.get("weight_bits",0)
@@ -195,6 +201,13 @@ def set_params(**kwargs):
         params.numeric_params.circuit.VcolUS = 0.5
         params.numeric_params.circuit.Vprog = 0.1333
         params.numeric_params.convergence_param_opu = 0.5
+        
+    ############################################################
+    # Select Device
+    params.numeric_params.circuit.select = select
+    params.numeric_params.circuit.select_thermal = select_thermal
+    params.numeric_params.circuit.select_ideality = select_ideality
+    params.numeric_params.circuit.select_sat_current = select_sat_current
 
     # Resolution on weights: quantization is applied during import
     # For BALANCED core, non-bitsliced, weight_bits is reduced by 1 since each device encodes half the range
@@ -559,10 +572,7 @@ def inference(ntest,dataset,paramsList,sizes,keras_model,layerParams,**kwargs):
         if ntest_batch > ntest:
             ntest_batch = ntest
         nloads = (ntest-1) // ntest_batch + 1
-        if type(topk) is int:
-            frac_accum = 0
-        else:
-            frac_accum = np.zeros(len(topk))
+        frac_accum = np.zeros(2)
     else:
         print('Loading dataset')
         ntest_batch = ntest
@@ -672,7 +682,7 @@ def inference(ntest,dataset,paramsList,sizes,keras_model,layerParams,**kwargs):
         print("===========================")
         frac = frac_accum / nloads
         if type(topk) is int:
-            print("Total inference accuracy: {:.2f}".format(100*frac)+"%")
+            print("Total inference accuracy: %g" % frac)
         else:
             accs = ""
             for j in range(len(topk)):

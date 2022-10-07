@@ -259,15 +259,17 @@ class NumericCore(ClipperCore):
         Gmin = Gmax / on_off_ratio
         Vmax = 0.8
         
-        Gmat = Gmin + (Gmax-Gmin) * matrix
-        
-        # print(Gmat[0])
+        # Gmat = Gmin + (Gmax-Gmin) * matrix
+    
         # print(vector)
+        # print(matrix)
         # Initial estimate of device currents
         dV0 = ncp.tile(vector,(matrix.shape[0],1)) * Vmax
-        Ires = Gmat*dV0
+        Ires = matrix*Gmax * dV0
         dV = dV0.copy()
         # print(Ires[np.nonzero(Ires)])
+        
+        comparison = matrix.dot(vector)
         ###############################################################
         if select:
             # Calculate best Vcomp for each device
@@ -325,11 +327,17 @@ class NumericCore(ClipperCore):
 
             # Update memristor currents for the next iteration
             dV += gamma*VerrMat
-            Ires = matrix*dV
+            Ires = matrix*Gmax * dV
             Niters += 1
             
         # Calculate the summed currents on the columns
         Icols = ncp.sum(Ires,axis=1) / (Gmax * Vmax)
+        
+        # print(ncp.mean((Icols-comparison)/comparison))
+        # print("Icols")
+        # print(Icols)
+        # print("dot product")
+        # print(comparison)
 
         # Should add some more checks here on whether the results of this calculation are erroneous even if it converged
         if Verr > Verr_th and Rp > 0:

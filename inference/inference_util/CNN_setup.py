@@ -32,14 +32,8 @@ def augment_parameters(config):
 
     if (config.adc_range_option != "calibrated" or config.Nslices > 1) and config.bias_bits == "adc":
         raise ValueError("Bias bits cannot track ADC resolution with the chosen ADC settings. Please set bias_bits to an integer")
-
-    if config.Rp > 0 and config.noRowParasitics:
-        if not config.input_bitslicing or config.dac_bits == 0:
-            raise ValueError("If using no-row parasitics model, must enable input bit slicing")
-    if config.Rp > 0 and config.dac_bits == 0:
-            raise ValueError("For parasitic resistance simulations, must have dac_bits > 0 to define finite input voltage ranges."+\
-                " If input ranges are available but input quantization is not desired, set dac_bits to a very large value (e.g. 32).")
-
+    if config.Rp > 0 and config.noRowParasitics and not config.input_bitslicing:
+        raise ValueError("If using no-row parasitics model, must enable input bit slicing")
     if config.Rp > 0 and not config.noRowParasitics and config.interleaved_posneg:
         print('Warning: interleaved pos/neg parasitic option ignored sice row parasitic resistance is enabled')
     if config.Rp > 0 and config.interleaved_posneg and config.style != "BALANCED":
@@ -708,7 +702,7 @@ def get_xy_parallel(config, disable=False):
         xy_pars = np.zeros((15,2),dtype=int)
         for k in range(15):
             if k == 0:
-                xy_pars[k,:] = np.array([32,32],dtype=int)
+                xy_pars[k,:] = np.array([8,8],dtype=int)
             elif k <= 4:
                 xy_pars[k,:] = np.array([16,16],dtype=int)
             elif k <= 9:

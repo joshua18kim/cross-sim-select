@@ -24,8 +24,8 @@ Nruns = 1
 
 # task = "imagenet"
 # task = "cifar100"
-# task = "cifar10"
-task = "mnist"
+task = "cifar10"
+# task = "mnist"
 
 # Choose neural network model based on task
 if task == "imagenet":
@@ -78,7 +78,7 @@ elif task == "mnist":
 time_interval = True
 
 # Show the Keras model summary
-show_model_summary = False
+show_model_summary = True
 
 # ==============================================
 # ========= Crossbar configuration =============
@@ -98,7 +98,7 @@ Nslices = 1
 NrowsMax = 1152
 
 # Simulate input bitslicing
-input_bitslicing = False
+input_bitslicing = True
 
 # Negative number handling (BALANCED or OFFSET)
 style = "BALANCED"
@@ -114,10 +114,26 @@ balanced_style = "one_sided"
 digital_offset = False
 
 # Array unit cell parasitic resistance
-Rp = 0
+Rp = 0.0000
+
+#########################################################
+# Select device parameters
+
+# Simulate select devices
+select = True
+
+# Thermal voltage of the diode used to simulate the select device
+select_thermal = 0.0258563
+
+# Ideality of the diode, directly proportional to the steepness of the exponential IV curve
+select_ideality = 0.5
+
+# Saturation current of the diode
+select_sat_current = 1e-14
+#########################################################
 
 # Whether parasitic voltage drops along a row should be set to zero
-noRowParasitics = True
+noRowParasitics = False
 
 # Interleave positive and negative cells in one column; ignore if OFFSET
 interleaved_posneg = False
@@ -161,16 +177,16 @@ On_off_ratio = 1000
 # error_model can be (str): "none", "alpha" (generic), or custom device model
 #   Available device models are: "SONOS", "PCM_Joshi", "RRAM_Milo"
 #   Define in weight_error_device_custom.py
-error_model = "alpha"
-alpha_error = 0.00 # used only if error_model is alpha
+error_model = "none"
+alpha_error = 0.01 # used only if error_model is alpha
 proportional_error = False # used only if error_model is alpha
 
 ### Read noise
 # noise_model can be (str): "none", "alpha" (generic), or custom device model
 #   Available device models are: "parabolic" (hypothetical) 
 #   Define in weight_readnoise_device_custom.py
-noise_model = "alpha"
-alpha_noise = 0.00 # used only if noise_model is alpha
+noise_model = "none"
+alpha_noise = 0.02 # used only if noise_model is alpha
 proportional_noise = False # used only if noise_model is alpha
 
 ### Conductance drift
@@ -186,10 +202,10 @@ drift_model = 'none'
 # ==============================================
 
 # Resolution: 0 means no quantization
-# adc_bits = 8
-# dac_bits = 8
-adc_bits = 0
-dac_bits = 0
+adc_bits = 8
+dac_bits = 8
+# adc_bits = 0
+# dac_bits = 0
 
 # Digitization after every input bit (ignored if input_bit_slicing is False)
 # Recommended settings: BALANCED -> ADC_per_ibit = False

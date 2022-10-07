@@ -70,7 +70,8 @@ adc_ranges, dac_ranges = load_adc_activation_ranges(config)
 # =======================================
 
 # Convolutions: number of sliding windows along x and y to compute in parallel
-xy_pars = get_xy_parallel(config)
+########################################################################################3
+xy_pars = get_xy_parallel(config, disable=True)
 
 # ================================
 # ========= Start sweep ==========
@@ -157,6 +158,11 @@ for q in range(config.Nruns):
                 t_drift=config.t_drift,
                 drift_model=config.drift_model,
                 Rp=Rp_j,
+                #######################################################
+                select=config.select,
+                select_thermal=config.select_thermal,
+                select_ideality=config.select_ideality,
+                select_sat_current=config.select_sat_current,
                 digital_offset=config.digital_offset,
                 Icol_max=config.Icol_max/config.Icell_max,
                 On_off_ratio=config.On_off_ratio,

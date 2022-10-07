@@ -71,7 +71,7 @@ adc_ranges, dac_ranges = load_adc_activation_ranges(config)
 
 # Convolutions: number of sliding windows along x and y to compute in parallel
 ########################################################################################3
-xy_pars = get_xy_parallel(config, disable=True)
+xy_pars = get_xy_parallel(config, disable=config.disable_SW_packing)
 
 # ================================
 # ========= Start sweep ==========
@@ -120,8 +120,8 @@ for q in range(config.Nruns):
             Rp_j = config.Rp # in principle, each layer can have a different parasitic resistance value
 
             # If parasitics are enabled, x_par and y_par are modified to optimize cumulative sum runtime
-            if Rp_j > 0 and layerParams[j]['type'] == 'conv':
-                xy_pars[j_conv,:] = get_xy_parallel_parasitics(Nrows,sizes[j][0],sizes[j+1][0],config.model_name)
+            if (Rp_j > 0 or config.select) and layerParams[j]['type'] == 'conv':
+                xy_pars[j_conv,:] = get_xy_parallel_parasitics(Nrows,sizes[j][0],sizes[j+1][0],config.model_name,disable=config.disable_SW_packing)
 
             if layerParams[j]['type'] == 'conv':
                 x_par, y_par = xy_pars[j_conv,:]

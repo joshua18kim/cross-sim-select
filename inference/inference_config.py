@@ -10,7 +10,7 @@
 # ==============================================
 
 # Enable GPU compute?
-useGPU = False
+useGPU = True
 
 # Which GPU to use (set to 0 if only one GPU)
 gpu_num = 0
@@ -70,7 +70,7 @@ if task == "imagenet":
     count_interval = 1
     topk = (1,5)
 elif task == "cifar10" or task == "cifar100":
-    count_interval = 10
+    count_interval = 1
     topk = 1
 elif task == "mnist":
     count_interval = 100
@@ -78,7 +78,11 @@ elif task == "mnist":
 time_interval = True
 
 # Show the Keras model summary
-show_model_summary = True
+show_model_summary = False
+
+# Disable sliding window packing?
+# If SW packing is optimized, will generally be faster on CPU and GPU
+disable_SW_packing = False
 
 # ==============================================
 # ========= Crossbar configuration =============

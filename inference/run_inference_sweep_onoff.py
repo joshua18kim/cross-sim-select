@@ -25,7 +25,7 @@ from inference_util.print_configuration_message import print_configuration_messa
 import inference_config as config
 
 # on_off_ratio error loop
-on_off_ratio_vec = np.array([1.01,10,100,1000])
+on_off_ratio_vec = np.array([2,10,100,1000])
 
 '''
 # Directory to place accuracy outputs as a CSV
@@ -84,7 +84,7 @@ adc_ranges, dac_ranges = load_adc_activation_ranges(config)
 # =======================================
 
 # Convolutions: number of sliding windows along x and y to compute in parallel
-xy_pars = get_xy_parallel(config, disable=True)
+xy_pars = get_xy_parallel(config, disable=config.disable_SW_packing)
 
 # ================================
 # ========= Start sweep ==========
@@ -142,8 +142,8 @@ for p in range(len(on_off_ratio_vec)):
                 Rp_j = config.Rp # in principle, each layer can have a different parasitic resistance value
 
                 # If parasitics are enabled, x_par and y_par are modified to optimize cumulative sum runtime
-                if Rp_j > 0 and layerParams[j]['type'] == 'conv':
-                    xy_pars[j_conv,:] = get_xy_parallel_parasitics(Nrows,sizes[j][0],sizes[j+1][0],config.model_name)
+                if (Rp_j > 0 or config.select) and layerParams[j]['type'] == 'conv':
+                    xy_pars[j_conv,:] = get_xy_parallel_parasitics(Nrows,sizes[j][0],sizes[j+1][0],config.model_name,disable=config.disable_SW_packing)
 
                 if layerParams[j]['type'] == 'conv':
                     x_par, y_par = xy_pars[j_conv,:]
@@ -230,6 +230,7 @@ for p in range(len(on_off_ratio_vec)):
             bias_bits=config.bias_bits,
             time_interval=config.time_interval,
             imagenet_preprocess=config.imagenet_preprocess,
+            dataset_normalization=config.dataset_normalization,
             adc_range_option=config.adc_range_option,
             larq=config.larq,
             whetstone=config.whetstone)

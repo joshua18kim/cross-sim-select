@@ -120,6 +120,8 @@ def set_params(**kwargs):
             weight_reorder = False
         if Rp > 0:
             weight_reorder = False
+        if select:
+            weight_reorder = False
         if noise_model == "alpha" and alpha_noise > 0:
             weight_reorder = False
         if noise_model != "none" and noise_model != "alpha":
@@ -181,10 +183,10 @@ def set_params(**kwargs):
         params.weight_error_params.drift_model = drift_model
 
     # Parasitic resistance
+    params.numeric_params.Nex_par = x_par * y_par
     if Rp > 0:
         # Bit line parasitic resistance
         params.numeric_params.Rp = Rp/params.xbar_params.weights.maximum
-        params.numeric_params.Nex_par = x_par * y_par
         params.numeric_params.Niters_max_parasitics = 100
         params.numeric_params.circuit.noRowParasitics = noRowParasitics
         params.numeric_params.circuit.Vselect = 0

@@ -63,11 +63,15 @@ class BalancedCore(WrapperCore):
                 raise ValueError("Not implemented: interleaved balanced core with row parasitics")
 
         self.fast_balanced = params.xbar_params.fast_balanced        
-        if self.fast_balanced and self.params.numeric_params.read_noise.sigma > 0:
+        if self.fast_balanced and self.params.numeric_params.read_noise.sigma > 0 and self.params.weight_error_params.noise_model != "none":
+            print(self.params.numeric_params.read_noise.sigma)
             print("Fast balanced core option cannot be used with read noise: reverting.")
             self.fast_balanced = False
         if self.fast_balanced and self.params.numeric_params.Rp > 0:
             print("Fast balanced core option cannot be used with parasitic resistance: reverting.")
+            self.fast_balanced = False
+        if self.fast_balanced and self.params.numeric_params.circuit.select:
+            print("Fast balanced core option cannot be used with select device: reverting.")
             self.fast_balanced = False
         if self.fast_balanced and not self.algorithm_params.subtract_current_in_xbar:
             print("Fast balanced core option must be used with analog subtraction: reverting.")

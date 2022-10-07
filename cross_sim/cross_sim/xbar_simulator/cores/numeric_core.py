@@ -51,7 +51,7 @@ class NumericCore(ClipperCore):
         else:
             self.matrix = matrix
 
-        # If doing training and SIMD parasitics, create a mask here
+        # If doing training and SIMD parasitics or select device, create a mask here
         if self.params.numeric_params.Nex_par > 1:
             Nex_par = self.params.numeric_params.Nex_par
             Nx,Ny = matrix.shape
@@ -141,7 +141,7 @@ class NumericCore(ClipperCore):
 
         # Call pseudo-circuit simulator if parasitic resistance is enabled
         #############################################################################
-        if self.params.numeric_params.Rp > 0 and vector.any() or (self.params.numeric_params.circuit.select == True):
+        if (self.params.numeric_params.Rp > 0 or self.params.numeric_params.circuit.select) and vector.any():
             solved, retry = False, False
             while not solved:
                 solved = True
@@ -218,6 +218,7 @@ class NumericCore(ClipperCore):
     def xbar_mvm_parasitics(self,vector,matrix):
         """
         Calculates the MVM result including parasitic resistance
+        Note: convergence is generally faster for a small matrix, or without SW packing
 
         vector : input vector
         matrix : weight matrix (input the transpose for VMM)
@@ -252,7 +253,6 @@ class NumericCore(ClipperCore):
         Verr = 1e9
         Niters = 0
         
-
         # Constants used to convert to real values for the diode simulation
         Rmin = 1e4
         Gmax = 1/Rmin
@@ -275,18 +275,23 @@ class NumericCore(ClipperCore):
             # Calculate best Vcomp for each device
             Vcomp = Vt*ideality*ncp.log(abs(Ires)/I0 + 1)
             Vcomp *= ncp.sign(Ires)
-            # print(Vcomp[np.nonzero(Vcomp)])
-            # Average the best Vcomp for each row
-            Vcomp_row = ncp.average(Vcomp,axis=0)
-            # print(Vcomp_row)
+            if useMask:
+                Vcomp_row = ncp.average(Vcomp,axis=0,weights=mask)
+            else:
+                Vcomp_row = ncp.mean(Vcomp,axis=0)
+
             # Pull the row Vcomp out across the rows into the correct matrix shape
             Vcomp_final = ncp.tile(Vcomp_row,(matrix.shape[0],1))
-            # print(Vcomp_final[np.nonzero(Vcomp_final)])
             
             # Overall Vin 
             Vin = dV0.copy() + Vcomp_final
         else:
             Vin = dV0.copy()
+
+        select = False
+
+        if Rp == 0:
+            Niters_max = 5
 
         # Iteratively calculate parasitics and update device currents
         while Verr > Verr_th and Niters < Niters_max:
@@ -304,7 +309,7 @@ class NumericCore(ClipperCore):
                 Vpar = Vdrops_col + Vdrops_row
             else:
                 Vpar = 0
-                Niters_max = 5
+
             #######################################################
             if select:
                 Vdiode = Vt*ideality*ncp.log(abs(Ires)/I0 + 1)
@@ -313,7 +318,11 @@ class NumericCore(ClipperCore):
                 Vdiode = 0
 
             # Calculate the error for the current estimate of memristor currents
-            VerrMat = (Vin - Vpar - Vdiode - dV)*(Vin!=0)
+            VerrMat = Vin - Vpar - Vdiode - dV
+            if select:
+                VerrMat *= (Vin != 0)
+                if useMask:
+                    VerrMat *= mask
 
             # Evaluate overall error; if using SIMD, make sure only to count the cells that matter
             if useMask:
@@ -327,9 +336,9 @@ class NumericCore(ClipperCore):
 
             # Update memristor currents for the next iteration
             dV += gamma*VerrMat
-            Ires = matrix*Gmax * dV
+            Ires = matrix*Gmax * dV            
             Niters += 1
-            
+
         # Calculate the summed currents on the columns
         Icols = ncp.sum(Ires,axis=1) / (Gmax * Vmax)
         
@@ -339,9 +348,16 @@ class NumericCore(ClipperCore):
         # print("dot product")
         # print(comparison)
 
+        # if useMask:
+        #     print(Icols[:16])
+        #     input()
+        # else:
+        #     print(Icols)
+        #     input()
+
         # Should add some more checks here on whether the results of this calculation are erroneous even if it converged
-        if Verr > Verr_th and Rp > 0:
-            raise RuntimeError('Parasitic resistance too high: could not converge!')
+        if Verr > Verr_th and (Rp > 0 or select):
+            raise RuntimeError('MVM circuit could not converge!')
         del Ires
         return Icols
 
@@ -858,7 +874,7 @@ class NumericCore(ClipperCore):
         
         # SIMD and parasitic resistance
         # If doing a circuit simulation, must keep the full sized (sparse) matrix
-        # Nex_par > 1 only if Rp > 0
+        # Nex_par > 1 only if Rp > 0 or select device on
         if self.params.numeric_params.Nex_par > 1:
             noisy_matrix = self._apply_read_noise(self.matrix)
 

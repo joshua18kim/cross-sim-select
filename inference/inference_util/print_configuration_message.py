@@ -105,6 +105,8 @@ def print_configuration_message(config):
         print('  Drift model: '+config.drift_model)
     else:
         print('  Weight drift off')
+    if config.select:
+        print('  Select device enabled, ideality factor: {:.4f}'.format(config.select_ideality))
     if config.useGPU:
         print('  GPU: '+str(config.gpu_num))
     print("=======================================")

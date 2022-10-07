@@ -54,7 +54,7 @@ def augment_parameters(config):
 
     # fast_balanced gives a performance boost with BALANCED or BITSLICED_BALANCED core if certain conditions are met
     noReadNoise = (config.noise_model == "alpha" and config.alpha_noise == 0) or config.noise_model == "none"
-    if config.Rp > 0 or not noReadNoise or config.interleaved_posneg:
+    if config.Rp > 0 or not noReadNoise or config.interleaved_posneg or config.select:
         config.fast_balanced = False
     else:
         config.fast_balanced = True
@@ -757,10 +757,14 @@ def get_xy_parallel(config, disable=False):
 get_xy_parallel_parasitics:
 Same as get_xy_parallel(), but specifically for the case where parasitic resistance is enabled (Rp > 0)
 '''
-def get_xy_parallel_parasitics(Nrows,Nx_in,Nx_out,model_name):
+def get_xy_parallel_parasitics(Nrows,Nx_in,Nx_out,model_name,disable=False):
 
     # Default xy_par if model is not in the list below
     xy_par = np.array([1,1])
+
+    # Default: No parallelization of sliding windows
+    if disable:
+        return xy_par
 
     if model_name == "Resnet50-v1.5" or model_name == "Resnet50" or model_name == "Resnet50-int4":
         # Layers that can use an even xy_par value

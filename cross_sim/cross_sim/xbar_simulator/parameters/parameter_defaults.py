@@ -150,6 +150,11 @@ ClipConstraintsDefaults = {
     'maximum' :1.0,
 }
 
+rad = {
+    'fluence' :10**7
+}
+
+
 # zero sigma means no noise
 NormalErrorDefaults = {
     'sigma' : 0.0,  # sigma is defined relative to the full range
@@ -331,6 +336,9 @@ NumericParamDefaults = {
         'convergence_param_opu' : 1, # Convergence parameter for parasitic simulations
         'binary_update' : False, # Whether OPU updates are binarized
         'binary_threshold' : 0.5, # Threshold of update binarizing function
+        'nonlinear' : False, # Whether nonlinear resistor simulation is enabled
+        'vmax' : 0.5, # [V] the maximum voltage that will be put across the resistor
+        'unipolar' : True # If true, only the positive side of the IV curve of the memristor is used to mitigate assymetry
     }#any extra variables to be set
 }
 

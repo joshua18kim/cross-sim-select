@@ -29,6 +29,7 @@ class NumericCore(ClipperCore):
         self.matrix_temp = None
         self.par_mask = None
         self.matrix_error = None
+        self.matrix_state = None
 
         ClipperCore.__init__(self, params)
 
@@ -43,7 +44,6 @@ class NumericCore(ClipperCore):
 
 
     def set_matrix(self, matrix, applyErrors=True):
-
         matrix = self.clip_matrix(matrix)
 
         if self.params.numeric_params.useGPU:
@@ -62,6 +62,17 @@ class NumericCore(ClipperCore):
                 self.par_mask[x_start:x_end,y_start:y_end] = 1
             self.mask_nnz = ncp.count_nonzero(self.par_mask)
             self.par_mask = (self.par_mask > 1e-9)
+
+####################################################################################################
+        # If nonlinear memristors are enabled, maps the weight to a state variable
+        if self.params.numeric_params.nonlinear:
+            # a1 = 1.27456875e-5 # linear fitting constant for the Taha model
+            # b = 4.91503504 # fitting constant inside sinh for the Taha model
+            # slope = a1*b # ????*(1-0.10788842) # This is the difference between the ON state G0 and the OFF state G0
+            # G0_matrix = slope * self.matrix # the weight matrix mapped to G0
+            # Note: make sure on_off_ratio = 10, this ensures the range is 0.1-1 which is approximately the correct range for the Taha dataset
+            # self.matrix_state = G0_matrix / (a1*b) # matrix of state variables 
+            self.matrix_state = self.matrix # Code above is currently unnecessary as relationship is linear 
 
         # Apply weight error
         if applyErrors:
@@ -154,7 +165,9 @@ class NumericCore(ClipperCore):
                         raise ValueError("Parasitic MVM failed to converge")
             if retry:
                 print("Reduced MVM convergence parameter to: "+str(self.params.numeric_params.convergence_param))
-
+        ##############################################################################
+        elif self.params.numeric_params.nonlinear:
+            result = self.nonlinear_mvm(vector,noisy_matrix.copy())
         else:
             # Compute using matrix vector dot product
             if self.params.numeric_params.useGPU:
@@ -215,6 +228,35 @@ class NumericCore(ClipperCore):
         return result
 
 
+##########################################################################################
+    def nonlinear_mvm(self,vector,matrix):
+        a1 = 1.27456875e-5
+        a2 = 3.23977283e-5
+        b = 4.91503504
+        vmax = self.params.numeric_params.vmax
+        renorm = a1*ncp.sinh(vmax*b)
+        v0 = ncp.tile(vector,(self.matrix.shape[0],1))*vmax 
+        if self.params.numeric_params.unipolar == True:
+            # Split voltage inputs into positive and negative to allow for correct normalization
+            # Assymetry of positive and engative IV curves greatly affects accuracy
+            # Use more resistors to run all as positive voltage inputs and then subtract the output 
+            # of the originally negative inputs from the output of the positive
+            v0_pos = (v0>=0)*v0
+            v0_neg = (v0<0)*(-v0) 
+            Ires_pos = a1*self.matrix*ncp.sinh(b*v0_pos) 
+            Ires_neg = a1*self.matrix*ncp.sinh(b*v0_neg)
+            Icols_pos = ncp.sum(Ires_pos,axis=1)
+            Icols_neg = ncp.sum(Ires_neg,axis=1)
+            Icols_pos /= renorm 
+            Icols_neg /= renorm
+            Icols = Icols_pos - Icols_neg
+        else:
+            Ires = ((v0>=0)*a1 + (v0<0)*a2)*ncp.sinh(b*v0)
+            Icols = ncp.sum(Ires,axis=1)
+            Icols /= renorm # May be less accurate than max(a1,a2)*sinh(b*v0)
+        return Icols
+
+
     def xbar_mvm_parasitics(self,vector,matrix):
         """
         Calculates the MVM result including parasitic resistance
@@ -241,7 +283,7 @@ class NumericCore(ClipperCore):
         Vt = self.params.numeric_params.circuit.select_thermal
         ideality = self.params.numeric_params.circuit.select_ideality
         I0 = self.params.numeric_params.circuit.select_sat_current
-        on_off_ratio = 1/self.params.xbar_params.weights.minimum
+        on_off_ratio = 1e3 
         
         
         # If SIMD, retrieve the appropriate masking matrix
@@ -259,13 +301,13 @@ class NumericCore(ClipperCore):
         Gmin = Gmax / on_off_ratio
         Vmax = 0.8
         
-        # Gmat = Gmin + (Gmax-Gmin) * matrix
+        Gmat = Gmin + (Gmax-Gmin) * matrix
     
         # print(vector)
         # print(matrix)
         # Initial estimate of device currents
         dV0 = ncp.tile(vector,(matrix.shape[0],1)) * Vmax
-        Ires = matrix*Gmax * dV0
+        Ires = matrix*Gmat * dV0
         dV = dV0.copy()
         # print(Ires[np.nonzero(Ires)])
         
@@ -273,6 +315,7 @@ class NumericCore(ClipperCore):
         ###############################################################
         if select:
             # Calculate best Vcomp for each device
+            '''
             Vcomp = Vt*ideality*ncp.log(abs(Ires)/I0 + 1)
             Vcomp *= ncp.sign(Ires)
             if useMask:
@@ -282,7 +325,8 @@ class NumericCore(ClipperCore):
 
             # Pull the row Vcomp out across the rows into the correct matrix shape
             Vcomp_final = ncp.tile(Vcomp_row,(matrix.shape[0],1))
-            
+            '''
+            Vcomp_final = (Gmin + Gmax)/2
             # Overall Vin 
             Vin = dV0.copy() + Vcomp_final
         else:
@@ -312,8 +356,7 @@ class NumericCore(ClipperCore):
 
             #######################################################
             if select:
-                Vdiode = Vt*ideality*ncp.log(abs(Ires)/I0 + 1)
-                Vdiode *= ncp.sign(Ires)
+                Vdiode = ncp.sign(Ires) * Vt*ideality*ncp.log(abs(Ires)/I0 + 1)
             else:
                 Vdiode = 0
 
@@ -336,7 +379,7 @@ class NumericCore(ClipperCore):
 
             # Update memristor currents for the next iteration
             dV += gamma*VerrMat
-            Ires = matrix*Gmax * dV            
+            Ires = matrix*Gmat * dV            
             Niters += 1
 
         # Calculate the summed currents on the columns

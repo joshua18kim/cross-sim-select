@@ -23,6 +23,8 @@ def set_params(**kwargs):
     """
     #######################
     #### load relevant parameters from arg dict
+    fluence = kwargs.get("fluence",10**7)
+
     task = kwargs.get("task","small")
     wtmodel = kwargs.get("wtmodel","BALANCED")
     convParams = kwargs.get("convParams",None)
@@ -39,12 +41,6 @@ def set_params(**kwargs):
     drift_model = kwargs.get("drift_model",None)
 
     Rp = kwargs.get("Rp",0)
-    
-    #################################################
-    select = kwargs.get("select",False)
-    select_thermal = kwargs.get("select_thermal",0.0258563)
-    select_ideality = kwargs.get("select_ideality",1.0)
-    select_sat_current = kwargs.get("select_sat_current",1e-14)
 
     NrowsMax = kwargs.get("NrowsMax",None)
     weight_bits = kwargs.get("weight_bits",0)
@@ -63,6 +59,11 @@ def set_params(**kwargs):
     Icol_max = kwargs.get("Icol_max",1e6)
     digital_bias = kwargs.get("digital_bias",False)
 
+#######################################################
+    nonlinear = kwargs.get("nonlinear",False)
+    vmax = kwargs.get("vmax",0.5)
+    unipolar = kwargs.get("unipolar",True)
+
     x_par = kwargs.get("x_par",1)
     y_par = kwargs.get("y_par",1)
     weight_reorder = kwargs.get("weight_reorder",True)
@@ -78,6 +79,8 @@ def set_params(**kwargs):
 
     ################  create parameter objects with all neural core settings for first core
     params = Parameters()
+    
+    params.fluence = fluence
 
     #set core type
     if Nslices == 1:
@@ -120,8 +123,6 @@ def set_params(**kwargs):
             weight_reorder = False
         if Rp > 0:
             weight_reorder = False
-        if select:
-            weight_reorder = False
         if noise_model == "alpha" and alpha_noise > 0:
             weight_reorder = False
         if noise_model != "none" and noise_model != "alpha":
@@ -162,6 +163,12 @@ def set_params(**kwargs):
     params.algorithm_params.disable_clipping = False
     params.xbar_params.balanced_style = balanced_style
 
+#############################################################################################
+    # Nonlinearity
+    params.numeric_params.nonlinear = nonlinear
+    params.numeric_params.vmax = vmax
+    params.numeric_params.unipolar = unipolar
+
     # Read noise
     params.weight_error_params.noise_model = noise_model
     params.numeric_params.read_noise.sigma = alpha_noise
@@ -183,10 +190,10 @@ def set_params(**kwargs):
         params.weight_error_params.drift_model = drift_model
 
     # Parasitic resistance
-    params.numeric_params.Nex_par = x_par * y_par
     if Rp > 0:
         # Bit line parasitic resistance
         params.numeric_params.Rp = Rp/params.xbar_params.weights.maximum
+        params.numeric_params.Nex_par = x_par * y_par
         params.numeric_params.Niters_max_parasitics = 100
         params.numeric_params.circuit.noRowParasitics = noRowParasitics
         params.numeric_params.circuit.Vselect = 0
@@ -203,13 +210,6 @@ def set_params(**kwargs):
         params.numeric_params.circuit.VcolUS = 0.5
         params.numeric_params.circuit.Vprog = 0.1333
         params.numeric_params.convergence_param_opu = 0.5
-        
-    ############################################################
-    # Select Device
-    params.numeric_params.circuit.select = select
-    params.numeric_params.circuit.select_thermal = select_thermal
-    params.numeric_params.circuit.select_ideality = select_ideality
-    params.numeric_params.circuit.select_sat_current = select_sat_current
 
     # Resolution on weights: quantization is applied during import
     # For BALANCED core, non-bitsliced, weight_bits is reduced by 1 since each device encodes half the range
@@ -574,7 +574,10 @@ def inference(ntest,dataset,paramsList,sizes,keras_model,layerParams,**kwargs):
         if ntest_batch > ntest:
             ntest_batch = ntest
         nloads = (ntest-1) // ntest_batch + 1
-        frac_accum = np.zeros(2)
+        if type(topk) is int:
+            frac_accum = 0
+        else:
+            frac_accum = np.zeros(len(topk))
     else:
         print('Loading dataset')
         ntest_batch = ntest
@@ -684,7 +687,7 @@ def inference(ntest,dataset,paramsList,sizes,keras_model,layerParams,**kwargs):
         print("===========================")
         frac = frac_accum / nloads
         if type(topk) is int:
-            print("Total inference accuracy: %g" % frac)
+            print("Total inference accuracy: {:.2f}".format(100*frac)+"%")
         else:
             accs = ""
             for j in range(len(topk)):

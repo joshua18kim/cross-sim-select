@@ -21,8 +21,10 @@ from inference_util.print_configuration_message import print_configuration_messa
 # ==========================
 
 import inference_config as config
-filename = "testing.txt"
-sys.stdout = open(filename, 'a')
+filename = "testing_plain"
+var_vec = [0.1]# [0.001,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.40]
+print(filename)
+print(var_vec)
 
 # ===================
 # ==== GPU setup ====
@@ -86,10 +88,11 @@ print(xy_pars)
 
 # Display the chosen simulation settings
 print_configuration_message(config)
-sys.stdout.close()
 
-for q in range(config.Nruns):
-    sys.stdout = open(filename, 'a')
+acc_vec = np.zeros(len(var_vec))
+
+for q in range(len(var_vec)):
+    config.vmax=var_vec[q]
     if config.Nruns > 1:
         print('')
         print('===========')
@@ -222,4 +225,5 @@ for q in range(config.Nruns):
         adc_range_option=config.adc_range_option,
         larq=config.larq,
         whetstone=config.whetstone)
-    sys.stdout.close()
+    acc_vec[q] = accuracy[0]
+    np.savetxt(filename+'.csv',acc_vec,delimiter=',')

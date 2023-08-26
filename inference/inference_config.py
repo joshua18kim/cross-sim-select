@@ -10,7 +10,7 @@
 # ==============================================
 
 # Enable GPU compute?
-useGPU = True
+useGPU = True 
 
 # Which GPU to use (set to 0 if only one GPU)
 gpu_num = 0
@@ -22,9 +22,9 @@ Nruns = 1
 # ======= Dataset and model settings ===========
 # ==============================================
 
-# task = "imagenet"
+task = "imagenet"
 # task = "cifar100"
-task = "cifar10"
+# task = "cifar10"
 # task = "mnist"
 
 # Choose neural network model based on task
@@ -53,7 +53,7 @@ elif task == "mnist":
     # model_name = "CNN6_v2"
 
 # Dataset truncation
-ntest = 1000 # number of images in inference simlation
+ntest = 100 # number of images in inference simlation
 ntest_batch = 1000 # how many images to load at a time in one contiguous block (for ImageNet, should be <=5000)
 nstart = 0 # index of starting image
 
@@ -67,10 +67,10 @@ randomSampling = False
 # count_interval: cumulative accuracy printed after every N images (N = count_interval)
 # time_interval: print the time elapsed between the processing of N images
 if task == "imagenet":
-    count_interval = 1
+    count_interval = 1000 
     topk = (1,5)
 elif task == "cifar10" or task == "cifar100":
-    count_interval = 1
+    count_interval = 100
     topk = 1
 elif task == "mnist":
     count_interval = 100
@@ -79,10 +79,6 @@ time_interval = True
 
 # Show the Keras model summary
 show_model_summary = False
-
-# Disable sliding window packing?
-# If SW packing is optimized, will generally be faster on CPU and GPU
-disable_SW_packing = False
 
 # ==============================================
 # ========= Crossbar configuration =============
@@ -102,7 +98,7 @@ Nslices = 1
 NrowsMax = 1152
 
 # Simulate input bitslicing
-input_bitslicing = True
+input_bitslicing = False
 
 # Negative number handling (BALANCED or OFFSET)
 style = "BALANCED"
@@ -117,27 +113,27 @@ balanced_style = "one_sided"
 # Whether offset is computed digitally (True) or using an analog zero-point column (False) 
 digital_offset = False
 
+fluence = 0
+
 # Array unit cell parasitic resistance
-Rp = 0.0000
+Rp = 0 
 
-#########################################################
-# Select device parameters
+# Sidewindow Packing
+disable_SW_packing = False
 
-# Simulate select devices
-select = True
+# Nonlinear resistor
+nonlinear = False 
+vmax = 0.2 # volts
+unipolar = True # determines if only one side of IV curve is used to eliminate effects of assymetry
 
-# Thermal voltage of the diode used to simulate the select device
+# Select (not complete)
+select = False 
 select_thermal = 0.0258563
-
-# Ideality of the diode, directly proportional to the steepness of the exponential IV curve
-select_ideality = 0.5
-
-# Saturation current of the diode
+select_ideality = 1.0 
 select_sat_current = 1e-14
-#########################################################
 
 # Whether parasitic voltage drops along a row should be set to zero
-noRowParasitics = False
+noRowParasitics = True
 
 # Interleave positive and negative cells in one column; ignore if OFFSET
 interleaved_posneg = False
@@ -165,7 +161,7 @@ bias_bits = 0
 # ==============================================
 
 # Cell condcutance On/off ratio: 0 means infinity
-On_off_ratio = 1000
+On_off_ratio = 10 
 
 ###############
 #
@@ -182,7 +178,7 @@ On_off_ratio = 1000
 #   Available device models are: "SONOS", "PCM_Joshi", "RRAM_Milo"
 #   Define in weight_error_device_custom.py
 error_model = "none"
-alpha_error = 0.01 # used only if error_model is alpha
+alpha_error = 0.00 # used only if error_model is alpha
 proportional_error = False # used only if error_model is alpha
 
 ### Read noise
@@ -190,7 +186,7 @@ proportional_error = False # used only if error_model is alpha
 #   Available device models are: "parabolic" (hypothetical) 
 #   Define in weight_readnoise_device_custom.py
 noise_model = "none"
-alpha_noise = 0.02 # used only if noise_model is alpha
+alpha_noise = 0.00 # used only if noise_model is alpha
 proportional_noise = False # used only if noise_model is alpha
 
 ### Conductance drift
@@ -206,10 +202,10 @@ drift_model = 'none'
 # ==============================================
 
 # Resolution: 0 means no quantization
-adc_bits = 8
-dac_bits = 8
-# adc_bits = 0
-# dac_bits = 0
+# adc_bits = 8
+# dac_bits = 8
+adc_bits = 0
+dac_bits = 0
 
 # Digitization after every input bit (ignored if input_bit_slicing is False)
 # Recommended settings: BALANCED -> ADC_per_ibit = False

@@ -58,6 +58,10 @@ def set_params(**kwargs):
     Rmax = kwargs.get("Rmax", 10000)
     infinite_on_off_ratio = kwargs.get("infinite_on_off_ratio", True)
     gate_input = kwargs.get("gate_input",True)
+    
+    device_nonlinearity = kwargs.get("device_nonlinearity",False)
+    nonlinearity_model = kwargs.get("nonlinearity_model","strukov")
+    Vread = kwargs.get("Vread",0.2)
 
     Nslices = kwargs.get("Nslices",1)    
     digital_offset = kwargs.get("digital_offset",False)
@@ -173,6 +177,11 @@ def set_params(**kwargs):
         params.simulation.convolution.Nic = convParams['Nic']
 
     ############### Device errors
+    
+    #### Device Nonlinearity
+    params.xbar.device.nonlinearity.enable = device_nonlinearity
+    params.xbar.device.nonlinearity.model = nonlinearity_model
+    params.xbar.device.nonlinearity.Vread = Vread
 
     #### Read noise
     if noise_model == "generic" and alpha_noise > 0:

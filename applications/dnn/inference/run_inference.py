@@ -191,6 +191,10 @@ for q in range(config.Nruns):
                 drift_model=config.drift_model,
                 Rp_row=config.Rp_row,
                 Rp_col=config.Rp_col,
+                #####################
+                device_nonlinearity=config.device_nonlinearity,
+                nonlinearity_model=config.nonlinearity_model,
+                Vread=config.Vread,
                 digital_offset=config.digital_offset,
                 Icol_max=Icol_max_norm,
                 infinite_on_off_ratio=config.infinite_on_off_ratio,

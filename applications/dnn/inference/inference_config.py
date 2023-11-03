@@ -182,6 +182,11 @@ infinite_on_off_ratio = True
 #   -- Conductance drift:          weight_drift_device_custom.py
 #   For more details, see Chapter 7 of the Inference manual.
 
+### Device Nonlinearity
+device_nonlinearity = True
+nonlinearity_model = "strukov"
+Vread = 0.5
+
 ### Programming error
 # error_model can be (str): "none", "generic" (generic), or custom device model
 #   Custom devices are defined in individual files in /simulator/devices/custom/

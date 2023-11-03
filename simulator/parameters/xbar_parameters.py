@@ -89,6 +89,7 @@ class DeviceParameters(BaseParameters):
     read_noise: WeightErrorParameters = None
     programming_error: WeightErrorParameters = None
     drift_error: WeightErrorParameters = None
+    nonlinearity: NonlinearityParameters = None
 
     def validate(self) -> None:
         super().validate()
@@ -136,6 +137,21 @@ class ArrayParameters(BaseParameters):
 
     Icol_max: float = 0
     parasitics: ParasiticParameters = None
+    
+@dataclass(repr=False)
+class NonlinearityParameters(BaseParameters):
+    """Parameters to desribe the behavior of the array.
+
+    Attributes:
+        Icol_max (float): Maximum current in a column, in units of the maximum current that
+            can be drawn by a single device in the array. Any column current that exceeds
+            (-Icol_max, +Icol_max) will be clipped to these bounds
+        parasitics (ParasiticsParameters): Parameters for array parasitics
+    """
+
+    enable: bool = False
+    model: str = "strukov"
+    Vread: float = 0.2
 
 
 # NOTE why are PairedADCParameters and PairedDACParameters separate?

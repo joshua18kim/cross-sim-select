@@ -180,6 +180,9 @@ class NumericCore(ICore, metaclass=ABCMeta):
                 mask=self.par_mask,
                 row_in=row_in,
             )
+        
+        if self.params.xbar.device.nonlinearity.enable:
+            print("nonlinearity model successfully accessed, parameters passed correctly")
 
         elif matrix_neg is not None:
             # Interleaved without parasitics: identical to normal balanced core operation

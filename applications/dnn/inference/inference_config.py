@@ -191,6 +191,9 @@ if nonlinearity_model == "sandia":
     Rmax = 14343.299 # ohms
     infinite_on_off_ratio = False
 
+sweep_values = [0.01,0.1,0.2,0.3,0.4,0.5] # values to be swept in simulation
+sweep_type = "Vread" # Variable to be swept
+
 ### Programming error
 # error_model can be (str): "none", "generic" (generic), or custom device model
 #   Custom devices are defined in individual files in /simulator/devices/custom/

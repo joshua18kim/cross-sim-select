@@ -22,10 +22,10 @@ Nruns = 1
 # ======= Dataset and model settings ===========
 # ==============================================
 
-# task = "imagenet"
+task = "imagenet"
 # task = "cifar100"
 # task = "cifar10"
-task = "mnist"
+# task = "mnist"
 
 # Choose neural network model based on task
 if task == "imagenet":
@@ -168,9 +168,9 @@ bias_bits = 0
 # ==============================================
 
 # Cell Resistance, infinite_on_off_ratio ignores Rmax because it is infinite
-Rmin = 1e3 # ohms
-Rmax = 1e6 # ohms
-infinite_on_off_ratio = True
+Rmin = 240.76575 # 1e3 # ohms
+Rmax = 20744.7287 # 1e6 # ohms
+infinite_on_off_ratio = False
 
 ###############
 #
@@ -183,9 +183,13 @@ infinite_on_off_ratio = True
 #   For more details, see Chapter 7 of the Inference manual.
 
 ### Device Nonlinearity
-device_nonlinearity = True
-nonlinearity_model = "strukov"
-Vread = 0.5
+device_nonlinearity = True # Enables nonlinearity simulation
+nonlinearity_model = "sandia" # device/nonlinearity model used (i.e. strukov, sandia, ielmini, yang)
+Vread = 0.1 # The maximum voltage used for read
+if nonlinearity_model == "sandia":
+    Rmin = 2019.78 # ohms
+    Rmax = 14343.299 # ohms
+    infinite_on_off_ratio = False
 
 ### Programming error
 # error_model can be (str): "none", "generic" (generic), or custom device model
@@ -217,7 +221,7 @@ drift_model = "none"
 # ==============================================
 
 # Resolution: 0 means no quantization
-adc_bits = 0
+adc_bits = 8
 dac_bits = 8
 
 # Simulate input bitslicing

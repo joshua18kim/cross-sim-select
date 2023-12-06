@@ -620,7 +620,7 @@ class DNN:
             if m == 0:
                 ivec = indata[one].copy()
             elif not branch:
-                ivec = output_vec.copy()
+                ivec = output_vecs.copy()
 
             #########################################
             #### Convolution and dense layers

@@ -89,6 +89,7 @@ class NumericCore(ICore, metaclass=ABCMeta):
         # Apply weight error
         matrix_copy = self.matrix.copy()
         matrix_error = self.device.apply_write_error(matrix_copy)
+    
         if not error_mask:
             self.matrix = matrix_error
         else:
@@ -181,8 +182,43 @@ class NumericCore(ICore, metaclass=ABCMeta):
                 row_in=row_in,
             )
         
-        if self.params.xbar.device.nonlinearity.enable:
-            print("nonlinearity model successfully accessed, parameters passed correctly")
+        elif self.params.xbar.device.nonlinearity.enable:
+            # Nonlinearity effects
+            V = vector * self.params.xbar.device.nonlinearity.Vread # Scale input vector by Vread
+            if self.params.xbar.device.nonlinearity.model == "sandia":
+                # I = a1*V + a2*V^3, model_params[:,0] = a1, [:,1] = a2
+                model_params = xp.array([[4.95103292e-04, 2.19338098e-04],
+                 [3.27675075e-04, 3.04327910e-04],
+                 [2.60537769e-04, 2.90193286e-04],
+                 [1.87953726e-04, 4.78522941e-04],
+                 [1.75955619e-04, 4.75657612e-04],
+                 [1.42502514e-04, 5.39058562e-04],
+                 [1.37058535e-04, 4.99567584e-04],
+                 [1.06050709e-04, 4.70969839e-04],
+                 [9.97455955e-05, 5.05756851e-04],
+                 [8.69609579e-05, 5.77638907e-04],
+                 [6.97189680e-05, 6.25967664e-04]])
+                
+                model_params = xp.flip(model_params, axis=0) # flip to get the maximum a1 value last
+                G0_norm = model_params[:,0] / xp.max(model_params[:,0]) # the G0 state (correlates to a1) normalized
+                a1 = xp.interp(matrix,G0_norm,model_params[:,0]) # the interpolated value of a1 for each weight in the matrix
+                a2 = xp.interp(matrix,G0_norm,model_params[:,1]) # the interpolated value of a2 for each weight in the matrix
+                result = xp.dot(a1,V) + xp.dot(a2,xp.power(V,3)) # I = a1*V + a2*V^3
+                # result /= self.params.xbar.device.nonlinearity.Vread # Renormalize vector by Vread
+                result /= model_params[-1,0] * self.params.xbar.device.nonlinearity.Vread + model_params[-1,1] * (self.params.xbar.device.nonlinearity.Vread ** 3)
+                # result /= model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread # normalize by G0 of the HRS
+            elif self.params.xbar.device.nonlinearity.model == "yang":
+                # I = a1*V, model_params = a1
+                G0_max = 4.15341463e-03
+                G0_min = 4.82050174e-05
+
+                a1 = matrix * G0_max # same as the interpolated value of a1 for each weight in the matrix
+                # if xp.greater(G0_min,a1).any():
+                    # raise ValueError("weight outside of on_off_ratio of nonlinear device, adjust on_off_ratio setting")
+                result = xp.dot(a1,V)
+                result /= self.params.xbar.device.nonlinearity.Vread * G0_max # Renormalize vector by Vread * G0
+            else:
+                raise ValueError("invalid nonlinear model entered --> "+self.params.xbar.device.nonlinearity.model)
 
         elif matrix_neg is not None:
             # Interleaved without parasitics: identical to normal balanced core operation

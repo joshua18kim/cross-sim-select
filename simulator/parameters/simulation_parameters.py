@@ -76,6 +76,8 @@ class SimulationParameters(BaseParameters):
             return False
         if params.xbar.array.Icol_max > 0:
             return False
+        if params.xbar.device.nonlinearity.enable:
+            return False
         return True
 
     @property

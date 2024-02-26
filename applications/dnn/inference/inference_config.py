@@ -22,9 +22,9 @@ Nruns = 1
 # ======= Dataset and model settings ===========
 # ==============================================
 
-task = "imagenet"
+# task = "imagenet"
 # task = "cifar100"
-# task = "cifar10"
+task = "cifar10"
 # task = "mnist"
 
 # Choose neural network model based on task
@@ -54,8 +54,8 @@ elif task == "mnist":
     model_name = "CNN6_v2"
 
 # Dataset truncation
-ntest = 1000 # number of images in inference simlation
-ntest_batch = 1000 # how many images to load at a time in one contiguous block (for ImageNet, should be <=5000)
+ntest = 100 # number of images in inference simlation
+ntest_batch = 100 # how many images to load at a time in one contiguous block (for ImageNet, should be <=5000)
 nstart = 0 # index of starting image
 
 # Random sampling: 
@@ -168,8 +168,8 @@ bias_bits = 0
 # ==============================================
 
 # Cell Resistance, infinite_on_off_ratio ignores Rmax because it is infinite
-Rmin = 240.76575 # 1e3 # ohms
-Rmax = 20744.7287 # 1e6 # ohms
+Rmin = 1e3 # ohms
+Rmax = 1e6 # ohms
 infinite_on_off_ratio = False
 
 ###############
@@ -184,15 +184,38 @@ infinite_on_off_ratio = False
 
 ### Device Nonlinearity
 device_nonlinearity = True # Enables nonlinearity simulation
-nonlinearity_model = "sandia" # device/nonlinearity model used (i.e. strukov, sandia, ielmini, yang)
-Vread = 0.1 # The maximum voltage used for read
+nonlinearity_model = "taha" # device/nonlinearity model used (i.e. strukov, sandia, ielmini, yang)
+Vread = 0.3 # The maximum voltage used for read
+b = 1 # 4.91503504 # nonlinearity parameter for Taha model (also serves as the mean if b_sigma is enabled)
+b_sigma = 1 # standard deviation of b
+unipolar = False
+
+# sweep_values = [0.01,0.1,0.2,0.3,0.4,0.5] # values to be swept in simulation
+sweep_values = [1,2,3,4,5] # values to be swept in simulation
+sweep_type = "b_sigma" # Variable to be swept
+
+# Rmin and Rmax must be set when using specific devices or models
+if device_nonlinearity:
+    infinite_on_off_ratio = False
+    
 if nonlinearity_model == "sandia":
     Rmin = 2019.78 # ohms
     Rmax = 14343.299 # ohms
-    infinite_on_off_ratio = False
-
-sweep_values = [0.01,0.1,0.2,0.3,0.4,0.5] # values to be swept in simulation
-sweep_type = "Vread" # Variable to be swept
+elif nonlinearity_model == "yang":
+    Rmin = 240.76565 # ohms
+    Rmax = 20744.7285 # ohms
+elif nonlinearity_model == "ecram":
+    Rmin = 1.5560869e6 # ohms
+    Rmax = 1.2173041e7 # ohms
+elif nonlinearity_model == "ielmini":
+    Rmin = 8.9131352e3 # ohms
+    Rmax = 3.9590347e5 # ohms
+elif nonlinearity_model == "strukov":
+    Rmin = 9.2465478e3 # ohms
+    Rmax = 5.6646078e4 # ohms
+elif nonlinearity_model == "taha":
+    Rmin = 1e3 # arbitrary?
+    Rmax = 1e6 # arbitrary?
 
 ### Programming error
 # error_model can be (str): "none", "generic" (generic), or custom device model

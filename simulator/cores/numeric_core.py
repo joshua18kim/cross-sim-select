@@ -95,6 +95,14 @@ class NumericCore(ICore, metaclass=ABCMeta):
         else:
             self.matrix = matrix_copy
             self.matrix[error_mask] = matrix_error[error_mask]
+        
+        # Pull nonlinearity for each device from distribution (variation)   
+        if self.params.xbar.device.nonlinearity.enable:
+            if self.params.xbar.device.nonlinearity.model == "taha":
+                if self.params.xbar.device.nonlinearity.b_sigma != 0:
+                    self.b = xp.random.normal(self.params.xbar.device.nonlinearity.b,self.params.xbar.device.nonlinearity.b_sigma,matrix.shape)
+                else:
+                    self.b = self.params.xbar.device.nonlinearity.b
 
     def set_vmm_inputs(self, vector):
         self.vector_vmm = vector
@@ -185,38 +193,25 @@ class NumericCore(ICore, metaclass=ABCMeta):
         elif self.params.xbar.device.nonlinearity.enable:
             # Nonlinearity effects
             V = vector * self.params.xbar.device.nonlinearity.Vread # Scale input vector by Vread
-            if self.params.xbar.device.nonlinearity.model == "sandia":
-                # I = a1*V + a2*V^3, model_params[:,0] = a1, [:,1] = a2
-                model_params = xp.array([[4.95103292e-04, 2.19338098e-04],
-                 [3.27675075e-04, 3.04327910e-04],
-                 [2.60537769e-04, 2.90193286e-04],
-                 [1.87953726e-04, 4.78522941e-04],
-                 [1.75955619e-04, 4.75657612e-04],
-                 [1.42502514e-04, 5.39058562e-04],
-                 [1.37058535e-04, 4.99567584e-04],
-                 [1.06050709e-04, 4.70969839e-04],
-                 [9.97455955e-05, 5.05756851e-04],
-                 [8.69609579e-05, 5.77638907e-04],
-                 [6.97189680e-05, 6.25967664e-04]])
+            
+            if self.params.xbar.device.nonlinearity.model == "taha":
+                result = self.run_taha(V,matrix)
+            
+            elif self.params.xbar.device.nonlinearity.model == "sandia":
+                result = self.run_sandia(V,matrix)
                 
-                model_params = xp.flip(model_params, axis=0) # flip to get the maximum a1 value last
-                G0_norm = model_params[:,0] / xp.max(model_params[:,0]) # the G0 state (correlates to a1) normalized
-                a1 = xp.interp(matrix,G0_norm,model_params[:,0]) # the interpolated value of a1 for each weight in the matrix
-                a2 = xp.interp(matrix,G0_norm,model_params[:,1]) # the interpolated value of a2 for each weight in the matrix
-                result = xp.dot(a1,V) + xp.dot(a2,xp.power(V,3)) # I = a1*V + a2*V^3
-                # result /= self.params.xbar.device.nonlinearity.Vread # Renormalize vector by Vread
-                result /= model_params[-1,0] * self.params.xbar.device.nonlinearity.Vread + model_params[-1,1] * (self.params.xbar.device.nonlinearity.Vread ** 3)
-                # result /= model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread # normalize by G0 of the HRS
             elif self.params.xbar.device.nonlinearity.model == "yang":
-                # I = a1*V, model_params = a1
-                G0_max = 4.15341463e-03
-                G0_min = 4.82050174e-05
-
-                a1 = matrix * G0_max # same as the interpolated value of a1 for each weight in the matrix
-                # if xp.greater(G0_min,a1).any():
-                    # raise ValueError("weight outside of on_off_ratio of nonlinear device, adjust on_off_ratio setting")
-                result = xp.dot(a1,V)
-                result /= self.params.xbar.device.nonlinearity.Vread * G0_max # Renormalize vector by Vread * G0
+                result = self.run_sandia(V,matrix)
+                
+            elif self.params.xbar.device.nonlinearity.model == "ecram":
+                result = self.run_ecram(V,matrix)
+                
+            elif self.params.xbar.device.nonlinearity.model == "ielmini":
+                result = self.run_ielmini(V,matrix)
+                
+            elif self.params.xbar.device.nonlinearity.model == "strukov":
+                result = self.run_strukov(V,matrix)
+                
             else:
                 raise ValueError("invalid nonlinear model entered --> "+self.params.xbar.device.nonlinearity.model)
 
@@ -231,7 +226,130 @@ class NumericCore(ICore, metaclass=ABCMeta):
             result = xp.dot(*op_pair)
 
         return result
+    
+    def run_taha(self,V,matrix):
+        a1 = 1.27456875e-5
+        a2 = 3.23977283e-5
+        b = self.b
+        vmax = self.params.xbar.device.nonlinearity.Vread
+        b_max_test = self.params.xbar.device.nonlinearity.b + self.params.xbar.device.nonlinearity.b_sigma
+        # renorm = a1/b*xp.sinh(vmax*b)
+        # renormalization, cannot account for variance in b. Can only pick one value.
+        renorm = a1/self.params.xbar.device.nonlinearity.b*xp.sinh(vmax*self.params.xbar.device.nonlinearity.b)
+        # renorm = a1/b_max_test * xp.sinh(vmax*b_max_test)
+        v0 = V
 
+        # if self.params.xbar.device.nonlinearity.unipolar == True:
+        if False:
+            # Split voltage inputs into positive and negative to allow for correct normalization
+            # Assymetry of positive and negative IV curves greatly affects accuracy
+            # Use more resistors to run all as positive voltage inputs and then subtract the output 
+            # of the originally negative inputs from the output of the positive
+            v0_pos = (v0>=0)*v0
+            v0_neg = (v0<0)*(-v0) 
+            Ires_pos = xp.matmul(a1/b*matrix, xp.sinh(b*v0_pos))
+            Ires_neg = xp.matmul(a1/b*matrix, xp.sinh(b*v0_neg))
+            # Icols_pos = xp.sum(Ires_pos,axis=1)
+            # Icols_neg = xp.sum(Ires_neg,axis=1)
+            Icols = Ires_pos - Ires_neg
+            result = Icols / renorm
+        else:
+            if len(v0.shape) == 2:
+                in_sinh = b[:,:,None]*v0[None,:,:]  # inner product that goes inside of the sinh function
+                matrixb = matrix/b # element-wise division, combining matrix and b allows for easy matrix shape modification in next step
+                Ires = a1*matrixb[:,:,None]*xp.sinh(in_sinh*(v0>=0)) + a1*matrixb[:,:,None]*xp.sinh(in_sinh*(v0<=0)) # resize matrixb to fit shape of in_sinh
+                Ires = xp.reshape(Ires,(matrix.shape[0],matrix.shape[1],v0.shape[1]),order="C") # current at each cell; reshape such that dimensions represent (columns,rows,images)
+            else:
+                Ires = a1*matrix/b * xp.sinh(b*v0*(v0>=0)) + a2*matrix/b * xp.sinh(b*v0*(v0<=0))
+            Icols = xp.sum(Ires,axis=1) # current in columns; sum currents of Ires along columns (rows are added together)
+            result = Icols / renorm # renormalize result
+        return result
+    
+    def run_sandia(self,V,matrix):
+        # I = a1*V + a2*V^3, model_params[:,0] = a1, [:,1] = a2
+        model_params = xp.array([[6.97189680e-05, 6.25967664e-04],
+                                 [8.69609579e-05, 5.77638907e-04],
+                                 [9.97455955e-05, 5.05756851e-04],
+                                 [1.06050709e-04, 4.70969839e-04],
+                                 [1.37058535e-04, 4.99567584e-04],
+                                 [1.42502514e-04, 5.39058562e-04],
+                                 [1.75955619e-04, 4.75657612e-04],
+                                 [1.87953726e-04, 4.78522941e-04],
+                                 [2.60537769e-04, 2.90193286e-04],
+                                 [3.27675075e-04, 3.04327910e-04],
+                                 [4.95103292e-04, 2.19338098e-04]])
+        
+        G0_norm = model_params[:,0] / xp.max(model_params[:,0]) # the G0 state (correlates to a1) normalized
+        # a1 = xp.interp(matrix,G0_norm,model_params[:,0]) # the interpolated value of a1 for each weight in the matrix
+        a1 = matrix * xp.max(model_params[:,0]) # same result as line above that is commented out, but more efficient
+        a2 = xp.interp(matrix,G0_norm,model_params[:,1]) # the interpolated value of a2 for each weight in the matrix
+        result = xp.dot(a1,V) + xp.dot(a2,xp.power(V,3)) # I = a1*V + a2*V^3
+        result /= model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread # normalize by G0 of the LRS
+        return result
+    
+    def run_yang(self,V,matrix):
+        # I = a1*V, model_params = a1
+        G0_max = 4.15341463e-03
+        G0_min = 4.82050174e-05
+
+        a1 = matrix * G0_max # same as the interpolated value of a1 for each weight in the matrix
+        '''
+        if xp.greater(G0_min,a1).any():
+            print(matrix)
+            print(a1)
+            print(G0_min)
+            raise ValueError("weight outside of on_off_ratio of nonlinear device, adjust on_off_ratio setting")
+        '''
+        result = xp.dot(a1,V)
+        result /= self.params.xbar.device.nonlinearity.Vread * G0_max # Renormalize vector by Vread * G0_max
+        print(result[0,:10])
+        '''
+        print(result)
+        print(xp.dot(matrix,vector))
+        raise ValueError("Check results")
+        '''
+        return result
+    
+    def run_ecram(self,V,matrix):
+        # I = a1*V, model_params = a1
+        G0_max = 6.42637632e-07
+        G0_min = 8.21487423e-08
+        
+        a1 = matrix * G0_max # same as the interpoalted value of a1 for each weight in the matrix
+        # This requires that the Rmin and Rmax be correctly set
+        result = xp.dot(a1,V)
+        result /= self.params.xbar.device.nonlinearity.Vread * G0_max # Renormalize vector by Vread * G0
+        return result
+        
+    def run_ielmini(self,V,matrix):
+        # I = a1*V + a2*V^2 + a3*V^3; model_params[:,0] = a1, [:,1] = a2, [:,2] = a3
+        model_params = xp.array([[2.52586823e-06, -3.48973077e-06,  3.25071350e-05],
+                                 [6.30105567e-05, -2.41951630e-05,  9.07331222e-07],
+                                 [7.52256890e-05, -1.40468526e-05,  1.60974889e-05],
+                                 [1.01797488e-04, -1.82253958e-05, -1.95322904e-05],
+                                 [1.12193967e-04, -1.27700637e-05, -9.41578684e-06]])
+        
+        G0_norm = model_params[:,0] / xp.max(model_params[:,0]) # the G0 state (correlates to a1) normalized
+        a1 = matrix * xp.max(model_params[:,0])
+        a2 = xp.interp(matrix,G0_norm,model_params[:,1]) # the interpolated value of a2 for each weight in the matrix
+        a3 = xp.interp(matrix,G0_norm,model_params[:,2]) # the interpolated value of a3 for each weight in the matrix
+        result = xp.dot(a1,V) + xp.dot(a2,xp.power(V,2)) + xp.dot(a3,xp.power(V,3)) # I = a1*V + a2*V^2 + a3*V^3
+        result /= model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread # normalize by G0 of the LRS
+        return result
+
+    def run_strukov(self,V,matrix):
+        # I = a1*V + a2*V^2 + a3*V^3; model_params[:,0] = a1, [:,1] = a2, [:,2] = a3
+        model_params = xp.array([[1.76534728e-05, -3.46494190e-06,  5.27298909e-05],
+                                 [1.08148482e-04, -2.23111255e-04,  5.87850858e-04]])
+        
+        G0_norm = model_params[:,0] / xp.max(model_params[:,0]) # the G0 state (correlates to a1) normalized
+        a1 = matrix * xp.max(model_params[:,0])
+        a2 = xp.interp(matrix,G0_norm,model_params[:,1]) # the interpolated value of a2 for each weight in the matrix
+        a3 = xp.interp(matrix,G0_norm,model_params[:,2]) # the interpolated value of a3 for each weight in the matrix
+        result = xp.dot(a1,V) + xp.dot(a2,xp.power(V,2)) + xp.dot(a3,xp.power(V,3)) # I = a1*V + a2*V^2 + a3*V^3
+        result /= model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread # normalize by G0 of the LRS
+        return result
+    
     def _read_matrix(self):
         return self.matrix.copy()
 

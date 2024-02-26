@@ -152,6 +152,8 @@ class NonlinearityParameters(BaseParameters):
     enable: bool = False
     model: str = "strukov"
     Vread: float = 0.2
+    b: float = 4.91503504
+    b_sigma: float = 0
 
 
 # NOTE why are PairedADCParameters and PairedDACParameters separate?

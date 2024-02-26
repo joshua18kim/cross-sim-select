@@ -27,7 +27,7 @@ from interface.config_message import print_configuration_message
 
 import inference_config as config
 
-filename = "Vmax_sweep"
+filename = "testing"
 var_vec = config.sweep_values
 print(filename)
 print("sweep " + config.sweep_type + ":")
@@ -96,6 +96,11 @@ acc_vec = np.zeros(len(var_vec))
 for q in range(len(var_vec)):
     if config.sweep_type == "Vread":
         config.Vread = var_vec[q]
+    elif config.sweep_type == "b":
+        config.b = var_vec[q]
+    elif config.sweep_type == "b_sigma":
+        config.b_sigma = var_vec[q]
+    print(var_vec[q])
 
     if config.Nruns > 1:
         print('')
@@ -170,7 +175,7 @@ for q in range(len(var_vec)):
 
             # Does this layer use analog batchnorm?
             analog_batchnorm = config.fold_batchnorm and layerParams[j]['batch_norm'] is not None
-
+    
             params = set_params(task=config.task,
                 wtmodel=config.style,
                 convParams=convParams,
@@ -205,6 +210,8 @@ for q in range(len(var_vec)):
                 device_nonlinearity=config.device_nonlinearity,
                 nonlinearity_model=config.nonlinearity_model,
                 Vread=config.Vread,
+                b=config.b,
+                b_sigma=config.b_sigma,
                 digital_offset=config.digital_offset,
                 Icol_max=Icol_max_norm,
                 infinite_on_off_ratio=config.infinite_on_off_ratio,
@@ -257,5 +264,8 @@ for q in range(len(var_vec)):
         adc_range_option=config.adc_range_option,
         show_HW_config=config.show_HW_config,
         return_network_output=config.return_network_output)
-    acc_vec[q] = accuracy[0]
+    if type(accuracy) == float:
+        acc_vec[q] = accuracy
+    else:
+        acc_vec[q] = accuracy[0]
     np.savetxt(filename+'.csv',acc_vec,delimiter=',')

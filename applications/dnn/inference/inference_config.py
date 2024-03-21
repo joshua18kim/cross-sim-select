@@ -54,14 +54,14 @@ elif task == "mnist":
     model_name = "CNN6_v2"
 
 # Dataset truncation
-ntest = 100 # number of images in inference simlation
-ntest_batch = 100 # how many images to load at a time in one contiguous block (for ImageNet, should be <=5000)
+ntest = 1000 # number of images in inference simlation
+ntest_batch = 1000 # how many images to load at a time in one contiguous block (for ImageNet, should be <=5000)
 nstart = 0 # index of starting image
 
 # Random sampling: 
 # If True, ntest images will be chosen randomly from the full dataset
 # If False, images will be loaded in the order that they are stored
-randomSampling = False
+randomSampling = True
 
 # Console outputs
 # top-k accuracy to record
@@ -186,13 +186,13 @@ infinite_on_off_ratio = False
 device_nonlinearity = True # Enables nonlinearity simulation
 nonlinearity_model = "taha" # device/nonlinearity model used (i.e. strukov, sandia, ielmini, yang)
 Vread = 0.3 # The maximum voltage used for read
-b = 1 # 4.91503504 # nonlinearity parameter for Taha model (also serves as the mean if b_sigma is enabled)
-b_sigma = 1 # standard deviation of b
+b = 4 # 4.91503504 # nonlinearity parameter for Taha model (also serves as the mean if b_sigma is enabled)
+b_sigma = 0 # standard deviation of b
 unipolar = False
 
 # sweep_values = [0.01,0.1,0.2,0.3,0.4,0.5] # values to be swept in simulation
-sweep_values = [1,2,3,4,5] # values to be swept in simulation
-sweep_type = "b_sigma" # Variable to be swept
+sweep_values = [1e-3,0.5,1,2,3,4,5] # values to be swept in simulation
+sweep_type = "b" # Variable to be swept
 
 # Rmin and Rmax must be set when using specific devices or models
 if device_nonlinearity:

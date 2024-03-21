@@ -101,6 +101,8 @@ class NumericCore(ICore, metaclass=ABCMeta):
             if self.params.xbar.device.nonlinearity.model == "taha":
                 if self.params.xbar.device.nonlinearity.b_sigma != 0:
                     self.b = xp.random.normal(self.params.xbar.device.nonlinearity.b,self.params.xbar.device.nonlinearity.b_sigma,matrix.shape)
+                    self.b = self.b*(self.b>0) + 1e-6*(self.b<=0) # any b value less than or equal to zero has no physical meaning, set to 1e-6
+                    self.matrixb = self.matrix/self.b # combining matrix and b allows for easy matrix shape modification in the taha model
                 else:
                     self.b = self.params.xbar.device.nonlinearity.b
 
@@ -254,14 +256,16 @@ class NumericCore(ICore, metaclass=ABCMeta):
             Icols = Ires_pos - Ires_neg
             result = Icols / renorm
         else:
-            if len(v0.shape) == 2:
+            if self.params.xbar.device.nonlinearity.b_sigma == 0:
+                Icols = xp.matmul(a1*matrix/b,xp.sinh(b*v0)) # simplified version that assumes device is symmetrical
+            elif (len(v0.shape) == 2):
                 in_sinh = b[:,:,None]*v0[None,:,:]  # inner product that goes inside of the sinh function
-                matrixb = matrix/b # element-wise division, combining matrix and b allows for easy matrix shape modification in next step
-                Ires = a1*matrixb[:,:,None]*xp.sinh(in_sinh*(v0>=0)) + a1*matrixb[:,:,None]*xp.sinh(in_sinh*(v0<=0)) # resize matrixb to fit shape of in_sinh
-                Ires = xp.reshape(Ires,(matrix.shape[0],matrix.shape[1],v0.shape[1]),order="C") # current at each cell; reshape such that dimensions represent (columns,rows,images)
+                matrixb = self.matrixb
+                Ires = matrixb[:,:,None]*( a1*xp.sinh(in_sinh*(v0>=0)) + a1*xp.sinh(in_sinh*(v0<=0)) ) # resize matrixb to fit shape of in_sinh
+                Icols = xp.sum(Ires,axis=1) # current in columns; sum currents of Ires along columns (rows are added together)
             else:
-                Ires = a1*matrix/b * xp.sinh(b*v0*(v0>=0)) + a2*matrix/b * xp.sinh(b*v0*(v0<=0))
-            Icols = xp.sum(Ires,axis=1) # current in columns; sum currents of Ires along columns (rows are added together)
+                Ires = a1*matrix/b * xp.sinh(b*v0*(v0>=0)) + a1*matrix/b * xp.sinh(b*v0*(v0<=0))
+                Icols = xp.sum(Ires,axis=1) # current in columns; sum currents of Ires along columns (rows are added together)
             result = Icols / renorm # renormalize result
         return result
     

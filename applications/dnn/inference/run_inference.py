@@ -195,6 +195,8 @@ for q in range(config.Nruns):
                 device_nonlinearity=config.device_nonlinearity,
                 nonlinearity_model=config.nonlinearity_model,
                 Vread=config.Vread,
+                b=config.b,
+                b_sigma=config.b_sigma,
                 digital_offset=config.digital_offset,
                 Icol_max=Icol_max_norm,
                 infinite_on_off_ratio=config.infinite_on_off_ratio,

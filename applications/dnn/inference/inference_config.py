@@ -54,14 +54,14 @@ elif task == "mnist":
     model_name = "CNN6_v2"
 
 # Dataset truncation
-ntest = 1000 # number of images in inference simlation
-ntest_batch = 1000 # how many images to load at a time in one contiguous block (for ImageNet, should be <=5000)
+ntest = 100 # number of images in inference simlation
+ntest_batch = 100 # how many images to load at a time in one contiguous block (for ImageNet, should be <=5000)
 nstart = 0 # index of starting image
 
 # Random sampling: 
 # If True, ntest images will be chosen randomly from the full dataset
 # If False, images will be loaded in the order that they are stored
-randomSampling = True
+randomSampling = False
 
 # Console outputs
 # top-k accuracy to record
@@ -184,8 +184,8 @@ infinite_on_off_ratio = False
 
 ### Device Nonlinearity
 device_nonlinearity = True # Enables nonlinearity simulation
-nonlinearity_model = "taha" # device/nonlinearity model used (i.e. strukov, sandia, ielmini, yang)
-Vread = 0.3 # The maximum voltage used for read
+nonlinearity_model = "strukov" # device/nonlinearity model used (i.e. strukov, sandia, ielmini, yang, ecram)
+Vread = 0.5 # The maximum voltage used for read
 b = 4 # 4.91503504 # nonlinearity parameter for Taha model (also serves as the mean if b_sigma is enabled)
 b_sigma = 0 # standard deviation of b
 unipolar = False

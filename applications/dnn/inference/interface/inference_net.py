@@ -64,6 +64,7 @@ def set_params(**kwargs):
     Vread = kwargs.get("Vread",0.2)
     b = kwargs.get("b",4.91503504)
     b_sigma = kwargs.get("b_sigma",0)
+    unipolar = kwargs.get("unipolar",False)
 
     Nslices = kwargs.get("Nslices",1)    
     digital_offset = kwargs.get("digital_offset",False)
@@ -186,6 +187,7 @@ def set_params(**kwargs):
     params.xbar.device.nonlinearity.Vread = Vread
     params.xbar.device.nonlinearity.b = b
     params.xbar.device.nonlinearity.b_sigma = b_sigma
+    params.xbar.device.nonlinearity.unipolar = unipolar
 
     #### Read noise
     if noise_model == "generic" and alpha_noise > 0:

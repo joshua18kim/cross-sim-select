@@ -154,6 +154,7 @@ class NonlinearityParameters(BaseParameters):
     Vread: float = 0.2
     b: float = 4.91503504
     b_sigma: float = 0
+    unipolar: bool = False
 
 
 # NOTE why are PairedADCParameters and PairedDACParameters separate?

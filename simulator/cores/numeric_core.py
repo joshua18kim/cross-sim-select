@@ -241,12 +241,13 @@ class NumericCore(ICore, metaclass=ABCMeta):
         # renorm = a1/b_max_test * xp.sinh(vmax*b_max_test)
         v0 = V
 
-        # if self.params.xbar.device.nonlinearity.unipolar == True:
-        if False:
+        if self.params.xbar.device.nonlinearity.unipolar == True:
             # Split voltage inputs into positive and negative to allow for correct normalization
             # Assymetry of positive and negative IV curves greatly affects accuracy
             # Use more resistors to run all as positive voltage inputs and then subtract the output 
             # of the originally negative inputs from the output of the positive
+            if self.params.xbar.device.nonlinearity.b_sigma == 0:
+                raise ValueError("variance in b not yet compatible with unipolar mapping")
             v0_pos = (v0>=0)*v0
             v0_neg = (v0<0)*(-v0) 
             Ires_pos = xp.matmul(a1/b*matrix, xp.sinh(b*v0_pos))
@@ -287,8 +288,20 @@ class NumericCore(ICore, metaclass=ABCMeta):
         # a1 = xp.interp(matrix,G0_norm,model_params[:,0]) # the interpolated value of a1 for each weight in the matrix
         a1 = matrix * xp.max(model_params[:,0]) # same result as line above that is commented out, but more efficient
         a2 = xp.interp(matrix,G0_norm,model_params[:,1]) # the interpolated value of a2 for each weight in the matrix
-        result = xp.dot(a1,V) + xp.dot(a2,xp.power(V,3)) # I = a1*V + a2*V^3
-        result /= model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread # normalize by G0 of the LRS
+        if self.params.xbar.device.nonlinearity.unipolar == True:
+            # Split voltage inputs into positive and negative to allow for correct normalization
+            # Assymetry of positive and negative IV curves greatly affects accuracy
+            # Use more resistors to run all as positive voltage inputs and then subtract the output 
+            # of the originally negative inputs from the output of the positive
+            V_pos = (V>=0)*V
+            V_neg = (V<0)*xp.abs(V) 
+            Ires_pos = xp.matmul(a1,V_pos) + xp.matmul(a2,xp.power(V_pos,3))
+            Ires_neg = xp.matmul(a1,V_neg) + xp.matmul(a2,xp.power(V_neg,3))
+            Ires = Ires_pos - Ires_neg
+            result = Ires / (model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread) # normalize by G0 of the LRS
+        else:
+            Ires = xp.matmul(a1,V) + xp.matmul(a2,xp.power(V,3)) # I = a1*V + a2*V^3
+            result = Ires / (model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread) # normalize by G0 of the LRS
         return result
     
     def run_yang(self,V,matrix):
@@ -304,14 +317,9 @@ class NumericCore(ICore, metaclass=ABCMeta):
             print(G0_min)
             raise ValueError("weight outside of on_off_ratio of nonlinear device, adjust on_off_ratio setting")
         '''
-        result = xp.dot(a1,V)
+        # Unipolar option unnecessary since mathematically identical given the linear mapping
+        result = xp.matmul(a1,V)
         result /= self.params.xbar.device.nonlinearity.Vread * G0_max # Renormalize vector by Vread * G0_max
-        print(result[0,:10])
-        '''
-        print(result)
-        print(xp.dot(matrix,vector))
-        raise ValueError("Check results")
-        '''
         return result
     
     def run_ecram(self,V,matrix):
@@ -319,9 +327,10 @@ class NumericCore(ICore, metaclass=ABCMeta):
         G0_max = 6.42637632e-07
         G0_min = 8.21487423e-08
         
-        a1 = matrix * G0_max # same as the interpoalted value of a1 for each weight in the matrix
+        # Unipolar option unnecessary since mathematically identical given the linear mapping
+        a1 = matrix * G0_max # same as the interpolated value of a1 for each weight in the matrix
         # This requires that the Rmin and Rmax be correctly set
-        result = xp.dot(a1,V)
+        result = xp.matmul(a1,V)
         result /= self.params.xbar.device.nonlinearity.Vread * G0_max # Renormalize vector by Vread * G0
         return result
         
@@ -337,8 +346,20 @@ class NumericCore(ICore, metaclass=ABCMeta):
         a1 = matrix * xp.max(model_params[:,0])
         a2 = xp.interp(matrix,G0_norm,model_params[:,1]) # the interpolated value of a2 for each weight in the matrix
         a3 = xp.interp(matrix,G0_norm,model_params[:,2]) # the interpolated value of a3 for each weight in the matrix
-        result = xp.dot(a1,V) + xp.dot(a2,xp.power(V,2)) + xp.dot(a3,xp.power(V,3)) # I = a1*V + a2*V^2 + a3*V^3
-        result /= model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread # normalize by G0 of the LRS
+        if self.params.xbar.device.nonlinearity.unipolar == True:
+            # Split voltage inputs into positive and negative to allow for correct normalization
+            # Assymetry of positive and negative IV curves greatly affects accuracy
+            # Use more resistors to run all as positive voltage inputs and then subtract the output 
+            # of the originally negative inputs from the output of the positive
+            V_pos = (V>=0)*V
+            V_neg = (V<0)*xp.abs(V)
+            Ires_pos = xp.matmul(a1,V_pos) + xp.matmul(a2,xp.power(V_pos,2)) + xp.matmul(a3,xp.power(V_pos,3))
+            Ires_neg = xp.matmul(a1,V_neg) + xp.matmul(a2,xp.power(V_neg,2)) + xp.matmul(a3,xp.power(V_neg,3))
+            Ires = Ires_pos - Ires_neg
+            result = Ires / (model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread) # normalize by G0 of the LRS
+        else:
+            Ires = xp.matmul(a1,V) + xp.matmul(a2,xp.power(V,2)) + xp.matmul(a3,xp.power(V,3)) # I = a1*V + a2*V^2 + a3*V^3
+            result = Ires / (model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread) # normalize by G0 of the LRS
         return result
 
     def run_strukov(self,V,matrix):
@@ -350,8 +371,20 @@ class NumericCore(ICore, metaclass=ABCMeta):
         a1 = matrix * xp.max(model_params[:,0])
         a2 = xp.interp(matrix,G0_norm,model_params[:,1]) # the interpolated value of a2 for each weight in the matrix
         a3 = xp.interp(matrix,G0_norm,model_params[:,2]) # the interpolated value of a3 for each weight in the matrix
-        result = xp.dot(a1,V) + xp.dot(a2,xp.power(V,2)) + xp.dot(a3,xp.power(V,3)) # I = a1*V + a2*V^2 + a3*V^3
-        result /= model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread # normalize by G0 of the LRS
+        if self.params.xbar.device.nonlinearity.unipolar == True:
+            # Split voltage inputs into positive and negative to allow for correct normalization
+            # Assymetry of positive and negative IV curves greatly affects accuracy
+            # Use more resistors to run all as positive voltage inputs and then subtract the output 
+            # of the originally negative inputs from the output of the positive
+            V_pos = (V>=0)*V
+            V_neg = (V<0)*xp.abs(V)
+            Ires_pos = xp.matmul(a1,V_pos) + xp.matmul(a2,xp.power(V_pos,2)) + xp.matmul(a3,xp.power(V_pos,3))
+            Ires_neg = xp.matmul(a1,V_neg) + xp.matmul(a2,xp.power(V_neg,2)) + xp.matmul(a3,xp.power(V_neg,3))
+            Ires = Ires_pos - Ires_neg
+            result = Ires / (model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread) # normalize by G0 of the LRS
+        else:
+            Ires = xp.matmul(a1,V) + xp.matmul(a2,xp.power(V,2)) + xp.matmul(a3,xp.power(V,3)) # I = a1*V + a2*V^2 + a3*V^3
+            result = Ires /  (model_params[-1,0]*self.params.xbar.device.nonlinearity.Vread) # normalize by G0 of the LRS
         return result
     
     def _read_matrix(self):

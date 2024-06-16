@@ -197,6 +197,7 @@ for q in range(config.Nruns):
                 Vread=config.Vread,
                 b=config.b,
                 b_sigma=config.b_sigma,
+                unipolar=config.unipolar,
                 digital_offset=config.digital_offset,
                 Icol_max=Icol_max_norm,
                 infinite_on_off_ratio=config.infinite_on_off_ratio,

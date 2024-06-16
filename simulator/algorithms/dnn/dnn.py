@@ -524,28 +524,43 @@ class DNN:
                     )
                     time_msg = ", time = {:.4f}".format(t_avg) + "s"
                     T1, one_T = time.time(), one_T + 1
-                if type(topk) is int:
-                    accs = "{:.2f}".format(100 * float(count) / one) + "%"
+                if return_network_output:
+                    # Display mean average error if regression task
+                    accs = "{:.2f}".format(float(count) / one)
+                    print(
+                        "Example "
+                        + str(one)
+                        + "/"
+                        + str(n)
+                        + ", mean average error = "
+                        + accs
+                        + " years"
+                        + time_msg,
+                        end="\r",
+                    )
                 else:
-                    for j in range(len(topk)):
-                        accs += (
-                            "{:.2f}".format(100 * float(count[j]) / one)
-                            + "% (top-"
-                            + str(topk[j])
-                            + ")"
-                        )
-                        if j < (len(topk) - 1):
-                            accs += ", "
-                print(
-                    "Example "
-                    + str(one)
-                    + "/"
-                    + str(n)
-                    + ", accuracy so far = "
-                    + accs
-                    + time_msg,
-                    end="\r",
-                )
+                    if type(topk) is int:
+                        accs = "{:.2f}".format(100 * float(count) / one) + "%"
+                    else:
+                        for j in range(len(topk)):
+                            accs += (
+                                "{:.2f}".format(100 * float(count[j]) / one)
+                                + "% (top-"
+                                + str(topk[j])
+                                + ")"
+                            )
+                            if j < (len(topk) - 1):
+                                accs += ", "
+                    print(
+                        "Example "
+                        + str(one)
+                        + "/"
+                        + str(n)
+                        + ", accuracy so far = "
+                        + accs
+                        + time_msg,
+                        end="\r",
+                    )
 
             ### Make a single prediction with the neural network
             ex = one if not randomSampling else inds_rand[one]
@@ -557,19 +572,21 @@ class DNN:
                 profile_in_dnn=profile_in_dnn,
                 return_network_output=return_network_output,
             )
-
-            ### Accumulate accuracy
-            if type(topk) is int:
-                count += int(result)
-            else:
-                for j in range(len(topk)):
-                    count[j] += int(result[j])
-
-            ### Collect network outputs
             if return_network_output:
+                ### Collect network outputs
                 if one == 0:
                     network_outputs = xp.zeros((n, len(output)))
                 network_outputs[one, :] = output
+                ### Accumulate Regression Error
+                count += xp.abs(result)
+                
+            else:
+                ### Accumulate accuracy
+                if type(topk) is int:
+                    count += int(result)
+                else:
+                    for j in range(len(topk)):
+                        count[j] += int(result[j])
 
         if count_interval > 0:
             print("\n")
@@ -598,7 +615,6 @@ class DNN:
         answers = self.answers
         nlayer = self.nlayer
         ncores = self.ncores
-
         if branch:
             sourceLayers = self.sourceLayers
             output_vecs = self.nlayer * [None]
@@ -897,11 +913,19 @@ class DNN:
                 for j in range(len(topk)):
                     indices = np.argpartition(network_output, -topk[j])[-topk[j] :]
                     result[j] = 1 if actual in indices else 0
+        elif return_network_output:
+            # Error output for regression tasks
+            result = network_output[0] - actual # error = prediction - actual, measured in years for UTKface
         else:
             # Single output neuron case (for binary classification tasks)
             output = 0 if network_output < 0.5 else 1
             result = 1 if output == actual else 0
-
+        # print("#####")
+        # print(actual)
+        # print(network_output)
+        # if network_output < 0:
+        #     network_output = [0]
+        # print("Age: ",actual," Prediction Error: ",(network_output[0]-actual))
         if return_network_output:
             return result, network_output
         else:

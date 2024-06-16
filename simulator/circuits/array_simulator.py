@@ -107,8 +107,8 @@ def mvm_parasitics(vector, matrix, params, useMask=False, mask=None, row_in=True
         Rp_in = params.xbar.array.parasitics.Rp_row
         Rp_out = params.xbar.array.parasitics.Rp_col
     else:
-        Rp_in = params.xbar.array.parasitics.Rp_row
-        Rp_out = params.xbar.array.parasitics.Rp_col
+        Rp_in = params.xbar.array.parasitics.Rp_col
+        Rp_out = params.xbar.array.parasitics.Rp_row
 
     Niters_max = params.simulation.Niters_max_parasitics
     Verr_th = params.simulation.Verr_th_mvm
@@ -117,52 +117,116 @@ def mvm_parasitics(vector, matrix, params, useMask=False, mask=None, row_in=True
     # Initialize error and number of iterations
     Verr = 1e9
     Niters = 0
-
-    # Initial estimate of device currents
-    # Input seen at every element
-    dV0 = xp.tile(vector, (matrix.shape[0], 1))
-    Ires = matrix * dV0
-    dV = dV0.copy()
-
-    # Iteratively calculate parasitics and update device currents
-    while Verr > Verr_th and Niters < Niters_max:
-        # Calculate parasitic voltage drops
-        if useMask:
-            Isum_col = mask * xp.cumsum(Ires, 1)
-            Isum_row = mask * xp.cumsum(Ires[::-1], 0)[::-1]
-        else:
-            Isum_col = xp.cumsum(Ires, 1)
-            Isum_row = xp.cumsum(Ires[::-1], 0)[::-1]
-
-        Vdrops_col = Rp_out * xp.cumsum(Isum_col[:, ::-1], 1)[:, ::-1]
-        Vdrops_row = Rp_in * xp.cumsum(Isum_row, 0)
-        Vpar = Vdrops_col + Vdrops_row
-
-        # Calculate the error for the current estimate of memristor currents
-        VerrMat = dV0 - Vpar - dV
-
-        # Evaluate overall error; if using SIMD, make sure only to count the cells that matter
-        if useMask:
-            Verr = xp.max(xp.abs(VerrMat[mask]))
-        else:
-            Verr = xp.max(xp.abs(VerrMat))
-        if Verr < Verr_th:
-            break
-
-        # Update memristor currents for the next iteration
-        dV += gamma * VerrMat
-        Ires = matrix * dV
-        Niters += 1
-
-    # Calculate the summed currents on the columns
-    Icols = xp.sum(Ires, axis=1)
-
-    # Should add some more checks here on whether the results of this calculation are erroneous even if it converged
-    if Verr > Verr_th:
-        raise RuntimeError("Parasitic resistance too high: could not converge!")
-    if xp.isnan(Icols).any():
-        raise RuntimeError("Nans due to parasitic resistance simulation")
-    return Icols
+    if params.xbar.device.nonlinearity.enable:
+        Gmax = 1/params.xbar.device.Rmin
+        Rmin = params.xbar.device.Rmin
+        Vmax = params.xbar.device.nonlinearity.Vread
+        b = params.xbar.device.nonlinearity.b
+        # Renorm = Gmax / b * xp.sinh(Vmax*b) # Max possible current, used to renormalize currents
+        Renorm = Gmax * Vmax # Renormalize by ideal maximum current
+        
+        # Check for Taha model
+        if params.xbar.device.nonlinearity.model != "taha":
+            raise ValueError("Taha model not selected, nonlinearity and parasitics is currently only compatible with the Taha model")
+        
+        # Multiply parasitics by Rmin to denormalize from step taken in inference_net lines 227-228
+        Rp_in  *= Rmin
+        Rp_out *= Rmin
+        
+        # Initial estimate of device currents
+        # Input seen at every element
+        dV0 = xp.tile(vector*Vmax, (matrix.shape[0], 1)) # multiply vector by Vmax to denormalize into real voltages
+        Ires = matrix * Gmax * dV0 # / b * xp.sinh(b*dV0) # multiply matrix by Gmax to get real currents in output, utilizes Taha model
+        dV = dV0.copy()
+    
+        # Iteratively calculate parasitics and update device currents
+        while Verr > Verr_th and Niters < Niters_max:
+            # Calculate parasitic voltage drops
+            if useMask:
+                Isum_col = mask * xp.cumsum(Ires, 1)
+                Isum_row = mask * xp.cumsum(Ires[::-1], 0)[::-1]
+            else:
+                Isum_col = xp.cumsum(Ires, 1)
+                Isum_row = xp.cumsum(Ires[::-1], 0)[::-1]
+    
+            Vdrops_col = Rp_out * xp.cumsum(Isum_col[:, ::-1], 1)[:, ::-1]
+            Vdrops_row = Rp_in * xp.cumsum(Isum_row, 0)
+            Vpar = Vdrops_col + Vdrops_row
+    
+            # Calculate the error for the current estimate of memristor currents
+            VerrMat = dV0 - Vpar - dV
+    
+            # Evaluate overall error; if using SIMD, make sure only to count the cells that matter
+            if useMask:
+                Verr = xp.max(xp.abs(VerrMat[mask]))
+            else:
+                Verr = xp.max(xp.abs(VerrMat))
+            if Verr < Verr_th:
+                break
+    
+            # Update memristor currents for the next iteration
+            dV += gamma * VerrMat
+            Ires = matrix * Gmax / b * xp.sinh(b*dV) # Taha model implemented
+            Niters += 1
+    
+        # Calculate the summed currents on the columns
+        Icols = xp.sum(Ires, axis=1)
+        # Normalize Icols
+        Icols /= Renorm
+    
+        # Should add some more checks here on whether the results of this calculation are erroneous even if it converged
+        if Verr > Verr_th:
+            raise RuntimeError("Parasitic resistance too high: could not converge!")
+        if xp.isnan(Icols).any():
+            raise RuntimeError("Nans due to parasitic resistance simulation")
+        return Icols
+    
+    else:
+        # Initial estimate of device currents
+        # Input seen at every element
+        dV0 = xp.tile(vector, (matrix.shape[0], 1))
+        Ires = matrix * dV0
+        dV = dV0.copy()
+    
+        # Iteratively calculate parasitics and update device currents
+        while Verr > Verr_th and Niters < Niters_max:
+            # Calculate parasitic voltage drops
+            if useMask:
+                Isum_col = mask * xp.cumsum(Ires, 1)
+                Isum_row = mask * xp.cumsum(Ires[::-1], 0)[::-1]
+            else:
+                Isum_col = xp.cumsum(Ires, 1)
+                Isum_row = xp.cumsum(Ires[::-1], 0)[::-1]
+    
+            Vdrops_col = Rp_out * xp.cumsum(Isum_col[:, ::-1], 1)[:, ::-1]
+            Vdrops_row = Rp_in * xp.cumsum(Isum_row, 0)
+            Vpar = Vdrops_col + Vdrops_row
+    
+            # Calculate the error for the current estimate of memristor currents
+            VerrMat = dV0 - Vpar - dV
+    
+            # Evaluate overall error; if using SIMD, make sure only to count the cells that matter
+            if useMask:
+                Verr = xp.max(xp.abs(VerrMat[mask]))
+            else:
+                Verr = xp.max(xp.abs(VerrMat))
+            if Verr < Verr_th:
+                break
+    
+            # Update memristor currents for the next iteration
+            dV += gamma * VerrMat
+            Ires = matrix * dV
+            Niters += 1
+    
+        # Calculate the summed currents on the columns
+        Icols = xp.sum(Ires, axis=1)
+    
+        # Should add some more checks here on whether the results of this calculation are erroneous even if it converged
+        if Verr > Verr_th:
+            raise RuntimeError("Parasitic resistance too high: could not converge!")
+        if xp.isnan(Icols).any():
+            raise RuntimeError("Nans due to parasitic resistance simulation")
+        return Icols
 
 
 def mvm_parasitics_gateInput(

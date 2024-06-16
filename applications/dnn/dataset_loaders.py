@@ -53,6 +53,8 @@ def load_dataset_inference(dataset, nstart_i, nend_i, calibration=False, subtrac
         if ntest_batch > 50000:
             raise ValueError("At most 50,000 test images can be used for ImageNet")
         (x_test, y_test) = load_imagenet(option=imagenet_preprocess,nstart=nstart_i,nend=nend_i,calibration=calibration)
+    elif dataset == "utkface":
+        (x_test, y_test) = load_utkface(nstart=nstart_i,nend=nend_i,calibration=calibration)
     else:
         raise ValueError("unknown dataset")
 
@@ -260,6 +262,34 @@ def load_cifar_100(path=datasets_root+'cifar100/',\
 
     return (x_test, y_test)
 
+def load_utkface(nstart=None,nend=None,calibration=False,training=False):
+    """Loads the UTKface dataset.
+    # If calibration is True, x_test will be a random subset of x_train
+    """
+    path = datasets_root + 'utkface/'
+    if not training:
+        if not calibration:
+            x_test = np.load(path+'x_test_utkface.npy')
+            y_test = np.load(path+'y_test_utkface.npy')
+            # x_test = x_test.reshape((4741, 200, 200, 3))
+            if nstart is not None and nend is not None:
+                x_test = x_test[nstart:nend,:,:,:]
+                y_test = y_test[nstart:nend]
+
+        else:
+            x_train = np.load(path+'x_train_utkface.npy')
+            y_train = np.load(path+'y_train_utkface.npy')
+            ntest = nend - nstart
+            # x_train = x_train.reshape((len(y_train), 200, 200, 3))
+            rand_order = np.arange(len(y_train))
+            np.random.shuffle(rand_order)
+            x_test = np.zeros((ntest, 200, 200, 3))
+            y_test = np.zeros(ntest)
+            for k in range(ntest):
+                x_test[k,:,:,:] = x_train[rand_order[k],:,:,:]
+                y_test[k] = y_train[rand_order[k]]
+
+        return (x_test, y_test)
 
 def load_imagenet(option, calibration=False, nstart=0,nend=9999):
 

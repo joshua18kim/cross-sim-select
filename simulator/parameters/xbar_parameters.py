@@ -140,13 +140,15 @@ class ArrayParameters(BaseParameters):
     
 @dataclass(repr=False)
 class NonlinearityParameters(BaseParameters):
-    """Parameters to desribe the behavior of the array.
+    """Parameters to desribe the nonlinear behavior of devices.
 
     Attributes:
-        Icol_max (float): Maximum current in a column, in units of the maximum current that
-            can be drawn by a single device in the array. Any column current that exceeds
-            (-Icol_max, +Icol_max) will be clipped to these bounds
-        parasitics (ParasiticsParameters): Parameters for array parasitics
+        Enable (bool): Whether to simulate nonlinearity or not
+        Model (str): Which model to use when simulating nonlinearity
+        Vread (float): Max voltage
+        b (float): nonlinearity parameter when using Taha model
+        b_sigma (float): gives the standard deviation of b for simulating device-to-device variation in nonlinearity
+        unipolar (bool): True if only utilizing the positive half of the IV curve.
     """
 
     enable: bool = False

@@ -96,7 +96,8 @@ class AnalogCore:
         # complex equivalent expansion. This could probably be fixed but it is a
         # sufficiently unusual case that just throw an error for now.
         if matrix.ndim == 1 or any(i == 1 for i in matrix.shape):
-            raise ValueError("AnalogCore must 2 dimensional")
+            print("Warning: Using 1D vector inside AnalogCore, this breaks complex equivalent expansion.")
+            # raise ValueError("AnalogCore must 2 dimensional")
 
         # params used in AnalogCore
         self.complex_valued = (

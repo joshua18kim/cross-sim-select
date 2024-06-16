@@ -24,8 +24,9 @@ Nruns = 1
 
 # task = "imagenet"
 # task = "cifar100"
-task = "cifar10"
+# task = "cifar10"
 # task = "mnist"
+task = "utkface" # must enable return_network_output
 
 # Choose neural network model based on task
 if task == "imagenet":
@@ -52,10 +53,13 @@ elif task == "mnist":
     # model_name = 'lenet5'
     # model_name = "CNN6"
     model_name = "CNN6_v2"
+    
+elif task == "utkface":
+    model_name = "ResNet14_UTK"
 
 # Dataset truncation
-ntest = 100 # number of images in inference simlation
-ntest_batch = 100 # how many images to load at a time in one contiguous block (for ImageNet, should be <=5000)
+ntest = 1000 # number of images in inference simlation
+ntest_batch = 1000 # how many images to load at a time in one contiguous block (for ImageNet, should be <=5000)
 nstart = 0 # index of starting image
 
 # Random sampling: 
@@ -76,11 +80,14 @@ elif task == "cifar10" or task == "cifar100":
 elif task == "mnist":
     count_interval = 100
     topk = 1
+elif task == "utkface":
+    count_interval = 1
+    topk = 1
 time_interval = True
 
 # Return the output of the final layer (before argmax) in addition to classification accuracy
 # This is useful if performing regression
-return_network_output = False
+return_network_output = True
 
 # Show the Keras model summary
 show_model_summary = False
@@ -184,14 +191,14 @@ infinite_on_off_ratio = False
 
 ### Device Nonlinearity
 device_nonlinearity = True # Enables nonlinearity simulation
-nonlinearity_model = "strukov" # device/nonlinearity model used (i.e. strukov, sandia, ielmini, yang, ecram)
-Vread = 0.5 # The maximum voltage used for read
-b = 4 # 4.91503504 # nonlinearity parameter for Taha model (also serves as the mean if b_sigma is enabled)
+nonlinearity_model = "taha" # device/nonlinearity model used (i.e. strukov, sandia, ielmini, yang, ecram)
+Vread = 0.2 # The maximum voltage used for read
+b = 3 # 4.91503504 # nonlinearity parameter for Taha model (also serves as the mean if b_sigma is enabled)
 b_sigma = 0 # standard deviation of b
 unipolar = False
 
 # sweep_values = [0.01,0.1,0.2,0.3,0.4,0.5] # values to be swept in simulation
-sweep_values = [1e-3,0.5,1,2,3,4,5] # values to be swept in simulation
+sweep_values = [1e-3,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5] # [1e-3,1,2,3,4,5] # values to be swept in simulation
 sweep_type = "b" # Variable to be swept
 
 # Rmin and Rmax must be set when using specific devices or models
@@ -214,8 +221,8 @@ elif nonlinearity_model == "strukov":
     Rmin = 9.2465478e3 # ohms
     Rmax = 5.6646078e4 # ohms
 elif nonlinearity_model == "taha":
-    Rmin = 1e3 # arbitrary?
-    Rmax = 1e6 # arbitrary?
+    Rmin = 1e6 # 1e3 # arbitrary?
+    Rmax = 1e7 # 1e6 # arbitrary?
 
 ### Programming error
 # error_model can be (str): "none", "generic" (generic), or custom device model
@@ -247,8 +254,8 @@ drift_model = "none"
 # ==============================================
 
 # Resolution: 0 means no quantization
-adc_bits = 8
-dac_bits = 8
+adc_bits = 0
+dac_bits = 0
 
 # Simulate input bitslicing
 input_bitslicing = False

@@ -203,7 +203,7 @@ class NumericCore(ICore, metaclass=ABCMeta):
                 result = self.run_sandia(V,matrix)
                 
             elif self.params.xbar.device.nonlinearity.model == "yang":
-                result = self.run_sandia(V,matrix)
+                result = self.run_yang(V,matrix)
                 
             elif self.params.xbar.device.nonlinearity.model == "ecram":
                 result = self.run_ecram(V,matrix)
@@ -230,16 +230,15 @@ class NumericCore(ICore, metaclass=ABCMeta):
         return result
     
     def run_taha(self,V,matrix):
-        a1 = 1.27456875e-5
-        a2 = 3.23977283e-5
+        a1 = 1/self.params.xbar.device.Rmin
+        a2 = a1
         b = self.b
         vmax = self.params.xbar.device.nonlinearity.Vread
-        b_max_test = self.params.xbar.device.nonlinearity.b + self.params.xbar.device.nonlinearity.b_sigma
+        # b_max_test = self.params.xbar.device.nonlinearity.b + self.params.xbar.device.nonlinearity.b_sigma
         # renorm = a1/b*xp.sinh(vmax*b)
         # renormalization, cannot account for variance in b. Can only pick one value.
         renorm = a1/self.params.xbar.device.nonlinearity.b*xp.sinh(vmax*self.params.xbar.device.nonlinearity.b)
         # renorm = a1/b_max_test * xp.sinh(vmax*b_max_test)
-        v0 = V
 
         if self.params.xbar.device.nonlinearity.unipolar == True:
             # Split voltage inputs into positive and negative to allow for correct normalization
@@ -248,8 +247,8 @@ class NumericCore(ICore, metaclass=ABCMeta):
             # of the originally negative inputs from the output of the positive
             if self.params.xbar.device.nonlinearity.b_sigma == 0:
                 raise ValueError("variance in b not yet compatible with unipolar mapping")
-            v0_pos = (v0>=0)*v0
-            v0_neg = (v0<0)*(-v0) 
+            v0_pos = (V>=0)*V
+            v0_neg = (V<0)*xp.abs(V)
             Ires_pos = xp.matmul(a1/b*matrix, xp.sinh(b*v0_pos))
             Ires_neg = xp.matmul(a1/b*matrix, xp.sinh(b*v0_neg))
             # Icols_pos = xp.sum(Ires_pos,axis=1)
@@ -258,14 +257,14 @@ class NumericCore(ICore, metaclass=ABCMeta):
             result = Icols / renorm
         else:
             if self.params.xbar.device.nonlinearity.b_sigma == 0:
-                Icols = xp.matmul(a1*matrix/b,xp.sinh(b*v0)) # simplified version that assumes device is symmetrical
-            elif (len(v0.shape) == 2):
-                in_sinh = b[:,:,None]*v0[None,:,:]  # inner product that goes inside of the sinh function
+                Icols = xp.matmul(a1*matrix/b,xp.sinh(b*V)) # simplified version that assumes device is symmetrical
+            elif (len(V.shape) == 2):
+                in_sinh = b[:,:,None]*V[None,:,:]  # inner product that goes inside of the sinh function
                 matrixb = self.matrixb
-                Ires = matrixb[:,:,None]*( a1*xp.sinh(in_sinh*(v0>=0)) + a1*xp.sinh(in_sinh*(v0<=0)) ) # resize matrixb to fit shape of in_sinh
+                Ires = matrixb[:,:,None]*( a1*xp.sinh(in_sinh*(V>=0)) + a1*xp.sinh(in_sinh*(V<=0)) ) # resize matrixb to fit shape of in_sinh
                 Icols = xp.sum(Ires,axis=1) # current in columns; sum currents of Ires along columns (rows are added together)
             else:
-                Ires = a1*matrix/b * xp.sinh(b*v0*(v0>=0)) + a1*matrix/b * xp.sinh(b*v0*(v0<=0))
+                Ires = a1*matrixb * xp.sinh(b*V*(V>=0)) + a1*matrixb * xp.sinh(b*V*(V<=0))
                 Icols = xp.sum(Ires,axis=1) # current in columns; sum currents of Ires along columns (rows are added together)
             result = Icols / renorm # renormalize result
         return result

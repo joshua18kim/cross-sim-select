@@ -516,7 +516,6 @@ def inference(ntest,dataset,paramsList,sizes,keras_model,layerParams,**kwargs):
                 print("Warning: Using >50 ImageNet images in bitwise BL current profiling. Might run out of memory!")
             for k in range(Ncores):
                 params_m[k].simulation.analytics.ntest = ntest
-
         dnn.set_layer_params(m, layerParams[m], digital_bias)
         dnn.ncore(m, style=layerParams[m]['type'], params=params_m)
 
@@ -622,14 +621,17 @@ def inference(ntest,dataset,paramsList,sizes,keras_model,layerParams,**kwargs):
         device = "CPU" if not useGPU else "GPU"
         sim_time = time_stop - time_start
         print("Total " + device + " seconds = {:.3f}".format(sim_time))
-        if type(topk) is int:
-            print("Inference accuracy: {:.3f}% ({:d}/{:d})".format(frac*100,count,ntest_batch))
+        if return_network_output:
+            print("Mean Average Error: {:.3f} years ({:d}/{:d})".format(frac,ntest_batch,ntest_batch))
         else:
-            accs = ""
-            for j in range(len(topk)):
-                accs += "{:.2f}% (top-{:d}, {:d}/{:d})".format(100*frac[j], topk[j], count[j], ntest_batch)
-                if j < (len(topk)-1): accs += ", "
-            print("Inference acuracy: "+accs+"\n")
+            if type(topk) is int:
+                print("Inference accuracy: {:.3f}% ({:d}/{:d})".format(frac*100,count,ntest_batch))
+            else:
+                accs = ""
+                for j in range(len(topk)):
+                    accs += "{:.2f}% (top-{:d}, {:d}/{:d})".format(100*frac[j], topk[j], count[j], ntest_batch)
+                    if j < (len(topk)-1): accs += ", "
+                print("Inference acuracy: "+accs+"\n")
 
         # Consolidate neural network outputs
         if return_network_output:

@@ -27,7 +27,7 @@ from interface.config_message import print_configuration_message
 
 import inference_config as config
 
-filename = "testing"
+filename = "utkface_test"
 var_vec = config.sweep_values
 print(filename)
 print("sweep " + config.sweep_type + ":")
@@ -265,7 +265,7 @@ for q in range(len(var_vec)):
         adc_range_option=config.adc_range_option,
         show_HW_config=config.show_HW_config,
         return_network_output=config.return_network_output)
-    if type(accuracy) == float:
+    if type(config.topk) == int:
         acc_vec[q] = accuracy
     else:
         acc_vec[q] = accuracy[0]

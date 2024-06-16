@@ -163,6 +163,11 @@ def build_keras_model(model_name,show_model_summary=False):
     elif model_name == "cifar10_cnn_brelu":
         model_path = model_dir + "cifar10/cifar10_cnn_brelu.h5"
         keras_model = load_keras_model(model_path,custom_import=True)
+        
+    ##### UTKFACE MODELS
+    elif model_name == "ResNet14_UTK":
+        model_path = model_dir + "utkface/resnet14_utk_noadd.h5"
+        keras_model = load_keras_model(model_path)
 
     ###### ALL OTHER UN-NAMED MODELS
     # Try to use model_name as path directly
@@ -296,6 +301,18 @@ def load_adc_activation_ranges(config):
         elif model_name == "CNN6_v2" and Nslices == 1:
             if style == "BALANCED" and not ADC_per_ibit and subtract_current_in_xbar:
                 adc_ranges = np.load(limits_dir+"mnist/adc_limits_cnn6v2_balanced.npy")
+        
+        elif model_name == "ResNet14_UTK" and Nslices ==1:
+            if style == "BALANCED" and not ADC_per_ibit and subtract_current_in_xbar:
+                if NrowsMax >= 576:
+                    adc_ranges = np.load(limits_dir+"cifar10/adc_limits_ResNet14_balanced.npy")
+                elif NrowsMax == 288:
+                    adc_ranges = np.load(limits_dir+"cifar10/adc_limits_ResNet14_balanced_288rows.npy")
+                elif NrowsMax == 144:
+                    adc_ranges = np.load(limits_dir+"cifar10/adc_limits_ResNet14_balanced_144rows.npy")
+            elif style == "OFFSET" and ADC_per_ibit:
+                if model_name == "ResNet14":
+                    adc_ranges = np.load(limits_dir+"cifar10/adc_limits_ResNet14_offset.npy")
 
         if adc_ranges[0] is None:
             raise ValueError("For the chosen model and crossbar settings, calibrated ADC ranges are unavailable: "+\
@@ -334,6 +351,8 @@ def load_adc_activation_ranges(config):
         elif model_name == "MobilenetV1" or model_name == "MobilenetV1-int8":
             dac_ranges = [np.array([0,6])] * Nlayers_mvm # ReLU6
             dac_ranges[0] = np.array([-1,1])
+        elif model_name == "ResNet14_UTK":
+            dac_ranges = np.load(limits_dir+"cifar10/dac_limits_ResNet14.npy")
 
         if dac_ranges[0] is None:
             raise ValueError("For the chosen model and crossbar settings, calibrated activation ranges are unavailable; please generate the limits or disable DAC.")
@@ -365,7 +384,7 @@ def model_specific_parameters(config):
     ########### Preprocessing parameters
 
     ### Subtract pixel mean
-    if task == "cifar10" or task == "cifar100":
+    if task == "cifar10" or task == "cifar100" or task == "utkface":
         if "ResNet" in model_name:
             subtract_pixel_mean = True
         else:
@@ -404,6 +423,8 @@ def model_specific_parameters(config):
             dataset_normalization = "unsigned_8b"
     elif task == "mnist" or task == "fashion":
         dataset_normalization = "unsigned_8b"
+    elif task == "utkface":
+        dataset_normalization = "none"
 
     # Layer-by-layer boolean of whether inputs to MVM are strictly positive due to ReLU 
     positiveInputsOnly = [False for k in range(Nlayers_mvm)]

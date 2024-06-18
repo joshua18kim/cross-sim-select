@@ -917,8 +917,9 @@ class DNN:
             # negative answers meaningless, set to 0
             if network_output < 0:
                  network_output = [0]
-            # Error output for regression tasks
-            result = network_output[0] - actual # error = prediction - actual, measured in years for UTKface
+            else:
+                # Error output for regression tasks
+                result = network_output[0] - actual # error = prediction - actual, measured in years for UTKface
         else:
             # Single output neuron case (for binary classification tasks)
             output = 0 if network_output < 0.5 else 1

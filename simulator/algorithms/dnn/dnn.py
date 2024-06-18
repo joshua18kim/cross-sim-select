@@ -916,10 +916,9 @@ class DNN:
         elif return_network_output:
             # negative answers meaningless, set to 0
             if network_output < 0:
-                 network_output = [0]
-            else:
-                # Error output for regression tasks
-                result = network_output[0] - actual # error = prediction - actual, measured in years for UTKface
+                 network_output[0] = 0
+            # Error output for regression tasks
+            result = network_output[0] - actual # error = prediction - actual, measured in years for UTKface
         else:
             # Single output neuron case (for binary classification tasks)
             output = 0 if network_output < 0.5 else 1

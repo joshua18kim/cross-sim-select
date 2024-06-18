@@ -10,7 +10,64 @@ import numpy as np
 import _pickle as cPickle
 
 # Root directory for all datasets
-datasets_root = "../../../data/datasets/"
+# This is relative to the inference or training directory, from which functions in this file will be called
+datasets_root = "../data/datasets/"
+
+
+def load_dataset_inference(dataset, nstart_i, nend_i, calibration=False, subtract_pixel_mean=False, 
+        precision = np.float32, dataset_normalization="none", imagenet_preprocess=None):
+    """
+    Dataset loader for neural network inference.
+        dataset : string
+        nstart_i : index of first example in test batch
+        nend_i : index of last example in test batch
+        calibration : whether to load a calibration subset of the test set, for DAC/ADC profiling
+            For ImageNet, a specific subset of the test set is used (MLPerf Calibration subset)
+            For other datasets, a random subset of the training set is used
+        subtract_pixel_mean : whether to subtract the pixel averages of the three color channels to 
+            zero-center the input values. The averages are taken over the training set.
+        precision : data precision of dataset
+        dataset_normalization : how the loaded dataset should be normalized (string, see dnn_setup/model_specific_parameters)
+        imagenet_preprocess : dataset pre-processing option used for ImageNet
+    """
+
+    ntest_batch = nend_i - nstart_i
+
+    if dataset == "mnist":
+        if ntest_batch > 10000:
+            raise ValueError("At most 10,000 test images can be used for MNIST")
+        (x_test, y_test) = load_data_mnist(nstart=nstart_i,nend=nend_i,calibration=calibration)
+    elif dataset == "fashion":
+        if ntest_batch > 10000:
+            raise ValueError("At most 10,000 test images can be used for Fashion MNIST")
+        (x_test, y_test) = load_data_fashion_mnist(nstart=nstart_i,nend=nend_i,calibration=calibration)
+    elif dataset == "cifar10":
+        if ntest_batch > 10000:
+            raise ValueError("At most 10,000 test images can be used for CIFAR-10")
+        (x_test, y_test) = load_cifar_10(nstart=nstart_i,nend=nend_i,calibration=calibration,subtract_pixel_mean=subtract_pixel_mean)
+    elif dataset == "cifar100":
+        if ntest_batch > 10000:
+            raise ValueError("At most 10,000 test images can be used for CIFAR-100")
+        (x_test, y_test) = load_cifar_100(nstart=nstart_i,nend=nend_i,calibration=calibration,subtract_pixel_mean=subtract_pixel_mean)
+    elif dataset == "imagenet":
+        if ntest_batch > 50000:
+            raise ValueError("At most 50,000 test images can be used for ImageNet")
+        (x_test, y_test) = load_imagenet(option=imagenet_preprocess,nstart=nstart_i,nend=nend_i,calibration=calibration)
+    elif dataset == "utkface":
+        (x_test, y_test) = load_utkface(nstart=nstart_i,nend=nend_i,calibration=calibration)
+    else:
+        raise ValueError("unknown dataset")
+
+    # Dataset scaling
+    # Add new cases here if this is not true
+    x_test = x_test.astype(precision)
+    if dataset_normalization == "unsigned_8b":
+        x_test /= 255
+    elif dataset_normalization == "signed_8b":
+        x_test = x_test / 127.5 - 1
+
+    return x_test, y_test
+
 
 def load_batch(fpath, label_key='labels'):
     """Internal utility for parsing CIFAR data.
@@ -212,16 +269,16 @@ def load_utkface(nstart=None,nend=None,calibration=False,training=False):
     path = datasets_root + 'utkface/'
     if not training:
         if not calibration:
-            x_test = np.load(path+'x_test_utkface')
-            y_test = np.load(path+'y_test_utkface')
+            x_test = np.load(path+'x_test_utkface.npy')
+            y_test = np.load(path+'y_test_utkface.npy')
             # x_test = x_test.reshape((4741, 200, 200, 3))
             if nstart is not None and nend is not None:
                 x_test = x_test[nstart:nend,:,:,:]
                 y_test = y_test[nstart:nend]
 
         else:
-            x_train = np.load(path+'x_train_utkface')
-            y_train = np.load(path+'y_train_utkface')
+            x_train = np.load(path+'x_train_utkface.npy')
+            y_train = np.load(path+'y_train_utkface.npy')
             ntest = nend - nstart
             # x_train = x_train.reshape((len(y_train), 200, 200, 3))
             rand_order = np.arange(len(y_train))
@@ -233,7 +290,6 @@ def load_utkface(nstart=None,nend=None,calibration=False,training=False):
                 y_test[k] = y_train[rand_order[k]]
 
         return (x_test, y_test)
-
 
 def load_imagenet(option, calibration=False, nstart=0,nend=9999):
 

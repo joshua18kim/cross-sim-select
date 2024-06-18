@@ -914,6 +914,9 @@ class DNN:
                     indices = np.argpartition(network_output, -topk[j])[-topk[j] :]
                     result[j] = 1 if actual in indices else 0
         elif return_network_output:
+            # negative answers meaningless, set to 0
+            if network_output < 0:
+                 network_output = [0]
             # Error output for regression tasks
             result = network_output[0] - actual # error = prediction - actual, measured in years for UTKface
         else:

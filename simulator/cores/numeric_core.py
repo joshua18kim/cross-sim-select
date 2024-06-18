@@ -237,7 +237,8 @@ class NumericCore(ICore, metaclass=ABCMeta):
         # b_max_test = self.params.xbar.device.nonlinearity.b + self.params.xbar.device.nonlinearity.b_sigma
         # renorm = a1/b*xp.sinh(vmax*b)
         # renormalization, cannot account for variance in b. Can only pick one value.
-        renorm = a1/self.params.xbar.device.nonlinearity.b*xp.sinh(vmax*self.params.xbar.device.nonlinearity.b)
+        # renorm = a1/self.params.xbar.device.nonlinearity.b*xp.sinh(vmax*self.params.xbar.device.nonlinearity.b)
+        renorm = a1 * vmax
         # renorm = a1/b_max_test * xp.sinh(vmax*b_max_test)
 
         if self.params.xbar.device.nonlinearity.unipolar == True:
